@@ -30,6 +30,15 @@ class DatasetGenerator(torch.utils.data.Dataset):
             return torch.zeros((1, 9, 512)), ''
 
 
+class DatasetGeneratorNpy(torch.utils.data.Dataset):#todo
+    def __init__(self):
+        pass
+    def __len__(self):
+        pass
+    def __getitem__(self, item):
+        pass
+
+
 class StudentPairGenerator(Dataset):
 
     def __init__(self, args):
