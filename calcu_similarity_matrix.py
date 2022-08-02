@@ -17,40 +17,52 @@ def dns_index_features(model, data_list, args):
         generator = DatasetGenerator(args.feature_path, data_list)
     elif os.path.isdir(args.feature_path):
         generator = DatasetGeneratorNpy(args.feature_path, data_list)
-    loader = DataLoader(generator,  num_workers=args.workers, collate_fn=utils.collate_eval)
-    # Extract features of the queries
-    index_features = []
-    print('\n> Extract features of the query videos')
+    loader = DataLoader(generator, num_workers=args.workers, collate_fn=utils.collate_eval)
     for video in tqdm(loader):
         video_features = video[0][0]
         video_id = video[2][0]
         if video_id:
-            # print('video_features.shape = ', video_features.shape)
             features = model.index_video(video_features.to(args.device))
-            if 'load_queries' in args and not args.load_queries: features = features.cpu()
-            # all_db.add(video_id)
-            index_features.append(features)
-            # queries_ids.append(video_id)
-    index_features = torch.cat(index_features, 0)
-
-    return index_features
-
-
+            yield video_id, features
 
 
 def calcu_similarity_matrix(dataset, args):
-    # if args.feature_path.endswith('hdf5'):
     if args.similarity_type.lower() == 'dns':
         model = FineGrainedStudent(attention=args.dns_student_type == 'attention',
                                    binarization=args.dns_student_type == 'binarization',
                                    pretrained=True).to(args.device)
-        queries_index_features = dns_index_features(model, dataset.get_queries(), args)
-        targets_index_features = dns_index_features(model, dataset.get_database(), args)
+        batch_sz = 2048 if 'batch_sz_sim' not in args else args.batch_sz_sim
+        all_similarities = []
+        targets_index_generator = dns_index_features(model, dataset.get_database(), args)
+
+        print('\n> Extract features of the query videos')
+        queries_index_generator = dns_index_features(model, dataset.get_queries(), args)
+        queries_index_infos = []
+        for queries_index_info in queries_index_generator:
+            queries_index_infos.append(queries_index_info)
+
         print('\n> Calculate query-target similarities')
-        sims = model.calculate_video_similarity(queries_index_features, targets_index_features,visual_figure_name=None,
-                                                visual_folder_path=args.visualization_dir).cpu().numpy()
-        print('sims.shape=', sims.shape)
-        return sims
+        for targets_index_info in targets_index_generator:
+            similarities = []
+            for queries_index_info in queries_index_infos:
+                sim = []
+                for batch_idx in range(
+                        targets_index_info[1].shape[0] // batch_sz + 1):  # we can use batch_sz to avoid OOM
+                    targets_feature_batch = targets_index_info[1][batch_idx * batch_sz: (batch_idx + 1) * batch_sz]
+                    if targets_feature_batch.shape[0] >= 4:
+                        query_id = queries_index_info[0]
+                        target_id = targets_index_info[0]
+                        query_feature = queries_index_info[1]
+                        s = model.calculate_video_similarity(query_feature, targets_feature_batch,
+                                                             visual_figure_name=query_id + '_' + target_id + '_b' + str(
+                                                                 batch_idx),
+                                                             visual_folder_path=args.visualization_dir)
+                        sim.append(s)
+                sim = torch.mean(torch.cat(sim, 0))
+                similarities.append(sim.detach().cpu().numpy())
+            all_similarities.append(similarities)
+        return all_similarities
+
 
 if __name__ == '__main__':
     formatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=80)

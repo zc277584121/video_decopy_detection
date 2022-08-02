@@ -186,17 +186,17 @@ class FineGrainedStudent(nn.Module):
         sim, sim_mask = self.visil_head(sim0, sim_mask) #sim: (B1*B2=1, T1', T2')
 
         if visual_figure_name is not None:
-            sim_fig_path = os.path.join(visual_folder_path, visual_figure_name + '-sim_matrix.png')
-            sim_reduced_fig_path = os.path.join(visual_folder_path, visual_figure_name + '-sim_matrix_reduced.png')
+            sim_fig_path = os.path.join(visual_folder_path, visual_figure_name + '.png')
+            # sim_reduced_fig_path = os.path.join(visual_folder_path, visual_figure_name + '-sim_matrix_reduced.png')
             plt.clf()
             sim_np = sim0[0].detach().cpu().numpy()
             plt.imshow(sim_np)
             plt.savefig(sim_fig_path)
 
-            plt.clf()
-            sim_np = sim[0].detach().cpu().numpy()
-            plt.imshow(sim_np)
-            plt.savefig(sim_reduced_fig_path)
+            # plt.clf()
+            # sim_np = sim[0].detach().cpu().numpy()
+            # plt.imshow(sim_np)
+            # plt.savefig(sim_reduced_fig_path)
 
             #todo htanh
         return self.htanh(sim), sim_mask
