@@ -162,43 +162,30 @@ class FineGrainedStudent(nn.Module):
         if sim_mask is not None:
             sim = sim.masked_fill((1 - sim_mask).bool(), 0.0)
         return sim, sim_mask
-                
-    def calculate_video_similarity(self, query, target, query_mask=None, target_mask=None,
-                                   visual_figure_name=None, visual_folder_path='./fg_sim_matrix'):
+
+
+    def calculate_similarity_matrix(self, query, target, query_mask=None, target_mask=None):
+        query, query_mask = check_dims(query, query_mask)
+        target, target_mask = check_dims(target, target_mask)
+        sim0, _ = self.frame_to_frame_similarity(query, target, query_mask, target_mask) #sim: (B1*B2=1, T1, T2)
+        return sim0
+
+    def calculate_video_similarity(self, query, target, query_mask=None, target_mask=None):
         query, query_mask = check_dims(query, query_mask)
         target, target_mask = check_dims(target, target_mask)
 
-        sim, sim_mask = self.similarity_matrix(query, target, query_mask, target_mask, visual_figure_name, visual_folder_path)
+        sim, sim_mask = self.similarity_matrix(query, target, query_mask, target_mask)
         sim = self.v2v_sim(sim, sim_mask)
         
         return sim.view(query.shape[0], target.shape[0])
     
-    def similarity_matrix(self, query, target, query_mask=None, target_mask=None,
-                          visual_figure_name=None, visual_folder_path='./fg_sim_matrix'):
+    def similarity_matrix(self, query, target, query_mask=None, target_mask=None):
         query, query_mask = check_dims(query, query_mask)
         target, target_mask = check_dims(target, target_mask)
-
-        if visual_figure_name is not None and not os.path.exists(visual_folder_path):
-            print('mkdir visual_folder_path...')
-            os.mkdir(visual_folder_path)
 
         sim0, sim_mask = self.frame_to_frame_similarity(query, target, query_mask, target_mask) #sim: (B1*B2=1, T1, T2)
         sim, sim_mask = self.visil_head(sim0, sim_mask) #sim: (B1*B2=1, T1', T2')
 
-        if visual_figure_name is not None:
-            sim_fig_path = os.path.join(visual_folder_path, visual_figure_name + '.png')
-            # sim_reduced_fig_path = os.path.join(visual_folder_path, visual_figure_name + '-sim_matrix_reduced.png')
-            plt.clf()
-            sim_np = sim0[0].detach().cpu().numpy()
-            plt.imshow(sim_np)
-            plt.savefig(sim_fig_path)
-
-            # plt.clf()
-            # sim_np = sim[0].detach().cpu().numpy()
-            # plt.imshow(sim_np)
-            # plt.savefig(sim_reduced_fig_path)
-
-            #todo htanh
         return self.htanh(sim), sim_mask
     
     def index_video(self, x, mask=None):

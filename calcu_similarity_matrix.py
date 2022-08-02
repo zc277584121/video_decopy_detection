@@ -3,10 +3,12 @@ import os
 import random
 import torch
 from tqdm import tqdm
-import utils
+# import utils
 from torch.utils.data import DataLoader
 from datasets.generators import DatasetGenerator, DatasetGeneratorNpy
 from model.students import FineGrainedStudent
+from utils import AsyncWriter, DataType
+from utils import data_utils
 
 random.seed(42)
 
@@ -17,7 +19,7 @@ def dns_index_features(model, data_list, args):
         generator = DatasetGenerator(args.feature_path, data_list)
     elif os.path.isdir(args.feature_path):
         generator = DatasetGeneratorNpy(args.feature_path, data_list)
-    loader = DataLoader(generator, num_workers=args.workers, collate_fn=utils.collate_eval)
+    loader = DataLoader(generator, num_workers=args.workers, collate_fn=data_utils.collate_eval)
     for video in tqdm(loader):
         video_features = video[0][0]
         video_id = video[2][0]
@@ -27,12 +29,20 @@ def dns_index_features(model, data_list, args):
 
 
 def calcu_similarity_matrix(dataset, args):
+    if not os.path.exists(args.output_dir):
+        print(f'\n > mkdir {args.output_dir}')
+        os.mkdir(args.output_dir)
+
+    writer_pool = AsyncWriter(pool_size=4,  # args.output_workers,#todo
+                              store_type='local',
+                              data_type=DataType.NUMPY.type_name,
+                              )
+
     if args.similarity_type.lower() == 'dns':
         model = FineGrainedStudent(attention=args.dns_student_type == 'attention',
                                    binarization=args.dns_student_type == 'binarization',
                                    pretrained=True).to(args.device)
         batch_sz = 2048 if 'batch_sz_sim' not in args else args.batch_sz_sim
-        all_similarities = []
         targets_index_generator = dns_index_features(model, dataset.get_database(), args)
 
         print('\n> Extract features of the query videos')
@@ -40,28 +50,26 @@ def calcu_similarity_matrix(dataset, args):
         queries_index_infos = []
         for queries_index_info in queries_index_generator:
             queries_index_infos.append(queries_index_info)
-
         print('\n> Calculate query-target similarities')
         for targets_index_info in targets_index_generator:
-            similarities = []
             for queries_index_info in queries_index_infos:
-                sim = []
+                batch_matrix_list = []
+                query_id = queries_index_info[0]
+                target_id = targets_index_info[0]
+
                 for batch_idx in range(
-                        targets_index_info[1].shape[0] // batch_sz + 1):  # we can use batch_sz to avoid OOM
+                        targets_index_info[1].shape[0] // batch_sz + 1):  # we can reduce batch_sz to avoid OOM
                     targets_feature_batch = targets_index_info[1][batch_idx * batch_sz: (batch_idx + 1) * batch_sz]
                     if targets_feature_batch.shape[0] >= 4:
-                        query_id = queries_index_info[0]
-                        target_id = targets_index_info[0]
                         query_feature = queries_index_info[1]
-                        s = model.calculate_video_similarity(query_feature, targets_feature_batch,
-                                                             visual_figure_name=query_id + '_' + target_id + '_b' + str(
-                                                                 batch_idx),
-                                                             visual_folder_path=args.visualization_dir)
-                        sim.append(s)
-                sim = torch.mean(torch.cat(sim, 0))
-                similarities.append(sim.detach().cpu().numpy())
-            all_similarities.append(similarities)
-        return all_similarities
+                        batch_sim_matrix = model.calculate_similarity_matrix(query_feature, targets_feature_batch)
+                        batch_sim_matrix = batch_sim_matrix.detach()[0]
+                        batch_matrix_list.append(batch_sim_matrix)
+                sim_matrix = torch.concat(batch_matrix_list, dim=1)
+                sim_matrix = sim_matrix.cpu().numpy()
+                key = os.path.join(args.output_dir, f"{target_id}-{query_id}.npy")
+                writer_pool.consume((key, sim_matrix))
+        writer_pool.stop()
 
 
 if __name__ == '__main__':
@@ -80,8 +88,6 @@ if __name__ == '__main__':
                         type=str, help="valid when similarity_type is DnS")
     parser.add_argument('--output_dir', type=str, default='./sim_matrix_npy',
                         help='similarity matrix output dir.')
-    parser.add_argument('--visualization_dir', type=str, default='./sim_matrix_vis',
-                        help='similarity matrix figure output dir, is None or '',  do not visualize.')
     parser.add_argument('--workers', type=int, default=0,
                         help='Number of workers used for video loading.')
     parser.add_argument('--device', type=str, default='cuda:0',
