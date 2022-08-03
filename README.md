@@ -9,3 +9,13 @@ python feature_extracting.py --dataset VCSL --feature_backbone DnS_R50 --output_
 ```shell
 python calcu_similarity_matrix.py --dataset VCSL --feature_path ./features/vcsl_feature.hdf5 --similarity_type DnS --dns_student_type attention
 ```
+
+### Evaluate metrics
+F1 metric:
+```shell
+python evaluate.py --dataset VCSL --pred_file ./result/output/dino-DTW-pred.json --split test --metric f1
+```
+mAP metric:
+```shell
+python evaluate.py --dataset VCSL --pred_file ./result/output/sim_vcsl.json --split val --metric map
+```

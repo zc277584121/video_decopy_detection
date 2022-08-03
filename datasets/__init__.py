@@ -9,6 +9,18 @@ from collections import OrderedDict
 
 import pandas as pd
 from sklearn.metrics import average_precision_score
+from multiprocessing import Pool
+
+from utils import build_reader
+from vcsl.metric import evaluate_micro, evaluate_macro, precision_recall
+
+
+def run_eval(input_dict):
+    gt_box = np.array(input_dict["gt"])
+    pred_box = np.array(input_dict["pred"])
+    result_dict = precision_recall(pred_box, gt_box)
+    result_dict["name"] = input_dict["name"]
+    return result_dict
 
 
 def resize_frame(frame, desired_size):
@@ -371,7 +383,7 @@ class SVD(object):
 
 class VCSL(object):
     def __init__(self, datafolder, split='val', video_root=''):
-        # pair_file = os.path.join(datafolder, 'pair_file_' + split + '.csv')
+
         # label_json_file = 'label_file_uuid_total.json'
         self.name = 'VCSL'
         self.annotation = {}
@@ -381,17 +393,19 @@ class VCSL(object):
         #     lines = f.readlines()
         #     gt_dict = json.loads(''.join(lines))
         #     self.annotation = gt_dict
-
-        # df = pd.read_csv(pair_file)
+        pair_file = os.path.join(datafolder, 'pair_file_' + split + '.csv')
+        self.df = pd.read_csv(pair_file)
         # data_list = df[['query_id', 'reference_id']].values.tolist()
-        self.split_meta_file = 'split_meta_pairs.json'
+        self.split_meta_file = os.path.join(datafolder, 'split_meta_pairs.json')
+        self.anno_file = os.path.join(datafolder, 'label_file_uuid_total.json')
+        self.clip_gt = json.load(open(self.anno_file))
 
         query_set = set()
         database_set = set()
         if split == 'all':
-            pass #todo
+            pass  # todo
         else:
-            with open(os.path.join(datafolder, self.split_meta_file), 'r') as f:
+            with open(self.split_meta_file, 'r') as f:
                 lines = f.readlines()
                 split_meta_dict = json.loads(''.join(lines))
                 for query, pair_list in split_meta_dict[split].items():
@@ -425,13 +439,22 @@ class VCSL(object):
                     s += i / ri
         return s / len(query_gt)
 
-    def evaluate(self, similarities, all_db=None, verbose=True):
-        if all_db is None:
-            all_db = set(self.database)
-        else:
-            all_db = set(self.database).intersection(all_db)
+    def evaluate(self, pred_file, metric):
+        if metric.lower() == 'f1':
+            self.evaluate_f1(pred_file)
+        elif metric.lower() == 'map':
+            similarities = json.load(open(pred_file))
+            self.evaluate_map(similarities)
 
-        # if not self.audio:
+    def evaluate_map(self, similarities, all_db=None, verbose=True):
+        if all_db is None:
+            all_db = set()
+            for query, refs in similarities.items():
+                all_db.add(query)
+                for ref in refs:
+                    all_db.add(ref)
+        all_db = set(self.database).intersection(all_db)
+
         all_query_mAP_list = []
 
         tmp_dict = {}
@@ -448,13 +471,12 @@ class VCSL(object):
             print('=' * 5, 'VCSL Dataset' + '=' * 5)
             query_not_found = len(set(self.queries) - similarities.keys())
             if query_not_found > 0:
-                print('[WARNING] {} queries are missing from the results and will be ignored'.format(query_not_found))
-                print(f'[WARNING] Ideal count of queries  is {len(set(self.queries))}, '
-                      f'Actually using {len(similarities)}, and {query_not_found} queries are missing and will be ignored')
+                print(f'[WARNING] Ideal count of queries is {len(set(self.queries))}, '
+                      f'Actually using {len(similarities)}, and {query_not_found} queries are missing and will be ignored.')
             database_not_found = len(set(self.database)) - len(all_db)
             if database_not_found > 0:
                 print(f'[WARNING] Ideal count of all data is {len(set(self.database))}, '
-                      f'Actually using {len(all_db)}, and {database_not_found} datas are missing and will be ignored')
+                      f'Actually using {len(all_db)}, and {database_not_found} datas are missing and will be ignored.')
 
             print('Queries: {} videos'.format(len(similarities)))
             print('Database: {} videos'.format(len(all_db)))
@@ -463,10 +485,66 @@ class VCSL(object):
             print('mAP: {:.4f}'.format(np.mean(all_query_mAP_list)))
         return {'mAP': np.mean(all_query_mAP_list)}
 
-# if __name__ == '__main__':
-#     vcsl = VCSL(datafolder='/Users/zilliz/zilliz/VCSL/data', split='val')
-#     q = vcsl.get_queries()
-#     d = vcsl.get_database()
-#     print(len(q))
-#     print(len(d))
-#     # print(vcsl.annotation)
+    def evaluate_f1(self, pred_file):
+        key_list = [key for key in self.clip_gt]
+
+        meta_pairs = json.load(open(self.split_meta_file))
+
+        # root_dir = os.path.dirname(self.anno_file)
+        # split_file = os.path.join(root_dir, f"pair_file_{args.split}.csv")
+        # df = pd.read_csv(split_file)
+        split_pairs = set([f"{q}-{r}" for q, r in zip(self.df.query_id.values, self.df.reference_id.values)])
+        print(f"{self.split} contains pairs {len(split_pairs)}")
+
+        key_list = [key for key in key_list if key in split_pairs]
+        print(f"Copied video data (positive) to evaluate: {len(key_list)}")
+
+        config = dict()
+        reader = build_reader('local', "json", **config)
+
+        pred_dict = reader.read(pred_file)
+        eval_list = []
+        for key in split_pairs:
+            if key in self.clip_gt:
+                eval_list += [{"name": key, "gt": self.clip_gt[key], "pred": pred_dict[key]}]
+            else:
+                eval_list += [{"name": key, "gt": [], "pred": pred_dict[key]}]
+        print(f"finish loading files, start evaluation...")
+
+        process_pool = Pool(4)
+        result_list = process_pool.map(run_eval, eval_list)
+        # print('result_list[0] =', result_list[0])
+        result_dict = {i['name']: i for i in result_list}
+
+        if self.split != 'all':
+            meta_pairs = meta_pairs[self.split]
+        else:
+            meta_pairs = {**meta_pairs['train'], **meta_pairs['val'], **meta_pairs['test']}
+
+        try:
+            feat, vta = pred_file.split('-')[:2]
+        except:
+            feat, vta = 'My-FEAT', 'My-VTA'
+
+        # Evaluated result on all video pairs including positive and negative copied pairs.
+        # The segment-level precision/recall can also indicate video-level performance since
+        # missing or false alarm lead to decrease on segment recall or precision.
+        r, p, frr, far = evaluate_micro(result_dict, 1)  # todo
+        print(f"Feature {feat} & VTA {vta}: ")
+        print(f"Overall segment-level performance, "
+              f"Recall: {r:.2%}, "
+              f"Precision: {p:.2%}, "
+              f"F1: {2 * r * p / (r + p):.2%}, "
+              )
+        print(f"video-level performance, "
+              f"FRR: {frr:.2%}, "
+              f"FAR: {far:.2%}, "
+              )
+
+        r, p, cnt = evaluate_macro(result_dict, meta_pairs)
+
+        print(f"query set cnt {cnt}, "
+              f"query macro-Recall: {r:.2%}, "
+              f"query macro-Precision: {p:.2%}, "
+              f"F1: {2 * r * p / (r + p):.2%}, "
+              )
