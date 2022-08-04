@@ -101,14 +101,15 @@ def precision_recall(pred_boxes: np.ndarray, gt_boxes: np.ndarray):
     """
 
     # abnormal assigned values for denominator = 0
-    if len(pred_boxes) > 0 and len(gt_boxes) == 0:
+    if len(pred_boxes) > 0 and len(gt_boxes) == 0:  # 2495
         return {"precision": 0, "recall": 1}
 
-    if len(pred_boxes) == 0 and len(gt_boxes) > 0:
+    if len(pred_boxes) == 0 and len(gt_boxes) > 0:  # 5377
         return {"precision": 1, "recall": 0}
 
-    if len(pred_boxes) == 0 and len(gt_boxes) == 0:
+    if len(pred_boxes) == 0 and len(gt_boxes) == 0:  # 25270,  (25270 + 2495 = 27765. In test set, 27765 has gt, the other 27765 do not.
         return {"precision": 1, "recall": 1}
+     # 22388
 
     # intersection area calculation
     inter_boxes, inter_areas = calc_inter(pred_boxes, gt_boxes)

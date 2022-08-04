@@ -398,6 +398,7 @@ class VCSL(object):
         # data_list = df[['query_id', 'reference_id']].values.tolist()
         self.split_meta_file = os.path.join(datafolder, 'split_meta_pairs.json')
         self.anno_file = os.path.join(datafolder, 'label_file_uuid_total.json')
+        self.frames_all_file = os.path.join(datafolder, 'frames_all.csv')
         self.clip_gt = json.load(open(self.anno_file))
 
         query_set = set()
@@ -425,6 +426,15 @@ class VCSL(object):
 
     def get_database(self):
         return self.database
+
+    def get_pairs(self):
+        pairs = self.df[['query_id', 'reference_id']].values.tolist()
+        return pairs
+
+    def get_files_dict(self):
+        files_dict = pd.read_csv(self.frames_all_file, usecols=['uuid', 'path'], index_col='uuid')
+        files_dict = {idx: r['path'] for idx, r in files_dict.iterrows()}
+        return files_dict
 
     def calculate_mAP(self, query, res, all_db):
         gt_sets = self.annotation[query]

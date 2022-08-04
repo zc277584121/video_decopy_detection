@@ -1,19 +1,25 @@
 import argparse
 import os
 import random
+from itertools import islice
+
+import numpy as np
+import pandas as pd
 import torch
+from torch import nn
 from tqdm import tqdm
-# import utils
 from torch.utils.data import DataLoader
 from datasets.generators import DatasetGenerator, DatasetGeneratorNpy
 from model.students import FineGrainedStudent
 from utils import AsyncWriter, DataType
 from utils import data_utils
+from vcsl.datasets import PairDataset
+from vcsl.vta import VideoSimMapModel
 
 random.seed(42)
 
 
-def dns_index_features(model, data_list, args):
+def load_features(data_list, args, dns_model: nn.Module=None):
     generator = None
     if args.feature_path.endswith('.hdf5'):
         generator = DatasetGenerator(args.feature_path, data_list)
@@ -21,37 +27,63 @@ def dns_index_features(model, data_list, args):
         generator = DatasetGeneratorNpy(args.feature_path, data_list)
     loader = DataLoader(generator, num_workers=args.workers, collate_fn=data_utils.collate_eval)
     for video in tqdm(loader):
-        video_features = video[0][0]
+        features = video[0][0]
         video_id = video[2][0]
         if video_id:
-            features = model.index_video(video_features.to(args.device))
+            if dns_model is not None:
+                features = dns_model.index_video(features.to(args.device))
             yield video_id, features
 
+def _dns_index_feature(dns_model, feature_np, device):
+    features = torch.from_numpy(feature_np.astype(np.float32)).to(device)
+    features = dns_model.index_video(features.to(device)).detach()
+    return features
 
 def calcu_similarity_matrix(dataset, args):
     if not os.path.exists(args.output_dir):
         print(f'\n > mkdir {args.output_dir}')
         os.mkdir(args.output_dir)
 
-    writer_pool = AsyncWriter(pool_size=4,  # args.output_workers,#todo
+    writer_pool = AsyncWriter(pool_size=1,  # args.output_workers,#todo
                               store_type='local',
                               data_type=DataType.NUMPY.type_name,
                               )
 
     if args.similarity_type.lower() == 'dns':
-        model = FineGrainedStudent(attention=args.dns_student_type == 'attention',
+        dns_model = FineGrainedStudent(attention=args.dns_student_type == 'attention',
                                    binarization=args.dns_student_type == 'binarization',
                                    pretrained=True).to(args.device)
-        batch_sz = 2048 if 'batch_sz_sim' not in args else args.batch_sz_sim
-        targets_index_generator = dns_index_features(model, dataset.get_database(), args)
+        sim_map_model = None
+    elif args.similarity_type.lower() in ["cos", "chamfer"]:
+        dns_model = None
+        sim_map_model = VideoSimMapModel(device=args.device)
+    else:
+        raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
+    targets_generator = load_features(dataset.get_database(), args, dns_model=dns_model)
+    queries_generator = load_features(dataset.get_queries(), args, dns_model=dns_model)
 
+    pair_dataset = PairDataset(query_list=None,
+                          gallery_list=None,
+                          pair_list=dataset.get_pairs(),
+                          file_dict=dataset.get_files_dict(),
+                          root=args.feature_path,
+                          store_type='local',
+                          trans_key_func=lambda x: x + ".npy",
+                          data_type="numpy",
+                          )
+    pair_loader = DataLoader(pair_dataset, collate_fn=lambda x: x,
+                        batch_size=4,
+                        num_workers=0 if args.similarity_type.lower() == 'dns' else 4)#args.workers) #todo
+
+
+    if args.pair_file is None: # query_reference
+        batch_sz = 2048 if 'batch_sz_sim' not in args else args.batch_sz_sim
         print('\n> Extract features of the query videos')
-        queries_index_generator = dns_index_features(model, dataset.get_queries(), args)
         queries_index_infos = []
-        for queries_index_info in queries_index_generator:
+        for queries_index_info in queries_generator:
             queries_index_infos.append(queries_index_info)
         print('\n> Calculate query-target similarities')
-        for targets_index_info in targets_index_generator:
+        for targets_index_info in targets_generator:
             for queries_index_info in queries_index_infos:
                 batch_matrix_list = []
                 query_id = queries_index_info[0]
@@ -62,13 +94,42 @@ def calcu_similarity_matrix(dataset, args):
                     targets_feature_batch = targets_index_info[1][batch_idx * batch_sz: (batch_idx + 1) * batch_sz]
                     if targets_feature_batch.shape[0] >= 4:
                         query_feature = queries_index_info[1]
-                        batch_sim_matrix = model.calculate_similarity_matrix(query_feature, targets_feature_batch)
-                        batch_sim_matrix = batch_sim_matrix.detach()[0]
+                        if args.similarity_type.lower() == 'dns':
+                            batch_sim_matrix = dns_model.calculate_similarity_matrix(query_feature, targets_feature_batch).detach()[0] #batch size is 0
+                        elif args.similarity_type.lower() in ["cos", "chamfer"]:
+                            _, _, batch_sim_matrix = sim_map_model.forward([(query_id, target_id, query_feature, targets_feature_batch)],
+                                                                           normalize_input=False, similarity_type=args.similarity_type)[0] #batch size is 1 so use `[]`
+                            batch_sim_matrix = torch.Tensor(batch_sim_matrix)
+                        else:
+                            raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
                         batch_matrix_list.append(batch_sim_matrix)
                 sim_matrix = torch.concat(batch_matrix_list, dim=1)
                 sim_matrix = sim_matrix.cpu().numpy()
                 key = os.path.join(args.output_dir, f"{target_id}-{query_id}.npy")
                 writer_pool.consume((key, sim_matrix))
+        writer_pool.stop()
+    else:  # pair
+        if not os.path.exists(args.output_dir):
+            os.makedirs(args.output_dir, exist_ok=True)
+
+        for batch_data in tqdm(pair_loader):
+            if args.similarity_type.lower() == 'dns':
+                query_id_batch = [b[0] for b in batch_data if b[2] is not None]
+                target_id_batch = [b[1] for b in batch_data if b[3] is not None]
+                query_batch = [_dns_index_feature(dns_model, b[2], args.device) for b in batch_data if b[2] is not None]
+                target_batch = [_dns_index_feature(dns_model, b[3], args.device) for b in batch_data if b[3] is not None]
+                batch_result = []
+                for query_id, target_id, query, target in zip(query_id_batch, target_id_batch, query_batch, target_batch):
+                    sim_matrix = dns_model.calculate_similarity_matrix(query, target).detach().cpu().numpy() #batch size is 0
+                    batch_result.append([query_id, target_id, sim_matrix])
+            elif args.similarity_type.lower() in ["cos", "chamfer"]:
+                batch_result = sim_map_model.forward(batch_data, normalize_input=False, similarity_type=args.similarity_type) #batch size > 0
+            else:
+                raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
+
+            for r_id, q_id, result in batch_result:
+                key = os.path.join(args.output_dir, f"{r_id}-{q_id}.npy")
+                writer_pool.consume((key, result))
         writer_pool.stop()
 
 
@@ -86,6 +147,8 @@ if __name__ == '__main__':
     parser.add_argument("--dns_student_type", default='attention',
                         choices=["attention", "binarization"],
                         type=str, help="valid when similarity_type is DnS")
+    parser.add_argument('--pair_file', type=str, default=None,
+                        help='if pair_file is not None, it will use pairs in pair_file to calculate similarity matrix, instead of query-database wise pairs')
     parser.add_argument('--output_dir', type=str, default='./sim_matrix_npy',
                         help='similarity matrix output dir.')
     parser.add_argument('--workers', type=int, default=0,
