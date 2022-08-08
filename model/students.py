@@ -168,7 +168,7 @@ class FineGrainedStudent(nn.Module):
         query, query_mask = check_dims(query, query_mask)
         target, target_mask = check_dims(target, target_mask)
         sim0, _ = self.frame_to_frame_similarity(query, target, query_mask, target_mask) #sim: (B1*B2=1, T1, T2)
-        return sim0
+        return sim0[0]
 
     def calculate_video_similarity(self, query, target, query_mask=None, target_mask=None):
         query, query_mask = check_dims(query, query_mask)

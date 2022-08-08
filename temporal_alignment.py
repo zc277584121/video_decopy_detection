@@ -7,51 +7,51 @@ from loguru import logger
 from itertools import product, islice
 
 from utils import DataType, build_reader, build_writer
-from vcsl.datasets import ItemDataset
+from vcsl.datasets import ItemDataset, filter_pair_list_by_np_dir
 from vcsl.vta import build_vta_model
 
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
 
-    parser.add_argument("--query-file", "-Q", type=str, help="data file")
-    parser.add_argument("--reference-file", "-G", type=str, help="data file")
-    parser.add_argument("--pair-file", type=str, help="data file")
+    parser.add_argument("--query_file", "-Q", type=str, help="data file")
+    parser.add_argument("--reference_file", "-G", type=str, help="data file")
+    parser.add_argument("--pair_file", type=str, help="data file")
 
-    parser.add_argument("--input-store", type=str, help="store of input data: oss|local", default="oss")
-    parser.add_argument("--input-root", type=str, help="root path of input data", default="")
+    # parser.add_argument("--input_store", type=str, help="store of input data: oss|local", default="oss")
+    parser.add_argument("--input_root", type=str, help="root path of input data", default="")
 
-    parser.add_argument("--oss-config", type=str, default='~/ossutilconfig-copyright', help="url path")
-    parser.add_argument("--batch-size", "-b", type=int, default=32, help="batch size")
-    parser.add_argument("--data-workers", type=int, default=16, help="data workers")
-    parser.add_argument("--request-workers", type=int, default=4, help="data workers")
-    parser.add_argument("--output-root", type=str, help="output root")
-    parser.add_argument("--output-store", type=str, help="store of output data: oss|local")
+    # parser.add_argument("--oss_config", type=str, default='~/ossutilconfig_copyright', help="url path")
+    parser.add_argument("--batch_size", "-b", type=int, default=32, help="batch size")
+    parser.add_argument("--data_workers", type=int, default=16, help="data workers")
+    parser.add_argument("--request_workers", type=int, default=4, help="data workers")
+    parser.add_argument("--output_root", type=str, help="output root")
+    parser.add_argument("--output_store", type=str, help="store of output data: oss|local")
 
     # Hyper parameters or input model
-    parser.add_argument("--alignment-method", type=str, default="DTW", help="DTW, DP, TN alignment method")
+    parser.add_argument("--alignment_method", type=str, default="DTW", help="DTW, DP, TN alignment method")
 
-    parser.add_argument("--min-length",  type=int, default=5, help="minimum length of one segment")
-    parser.add_argument("--sum-sim", type=float, default=10., help="minimum accumulated sim of one segment")
-    parser.add_argument("--ave-sim", type=float, default=0.3, help="average sim of one segment")
-    parser.add_argument("--min-sim", type=float, default=0.2, help="minimum average sim of one segment")
+    parser.add_argument("--min_length",  type=int, default=5, help="minimum length of one segment")
+    parser.add_argument("--sum_sim", type=float, default=10., help="minimum accumulated sim of one segment")
+    parser.add_argument("--ave_sim", type=float, default=0.3, help="average sim of one segment")
+    parser.add_argument("--min_sim", type=float, default=0.2, help="minimum average sim of one segment")
 
-    parser.add_argument("--max-path", type=int, default=10, help="maximum number of paths to predict")
+    parser.add_argument("--max_path", type=int, default=10, help="maximum number of paths to predict")
     parser.add_argument("--discontinue", type=int, default=3, help="max discontinue point in path")
-    parser.add_argument("--max-iou", type=float, default=0.3, help="max iou to filter bboxes")
+    parser.add_argument("--max_iou", type=float, default=0.3, help="max iou to filter bboxes")
 
-    parser.add_argument("--diagonal-thres", type=int, default=10, help="threshold for discarding a vertical/horizontal part of a segment for DP")
+    parser.add_argument("--diagonal_thres", type=int, default=10, help="threshold for discarding a vertical/horizontal part of a segment for DP")
 
-    parser.add_argument("--tn-top-K", type=int, default=5, help="top k nearest for TN")
-    parser.add_argument("--tn-max-step", type=int, default=10, help="max step for TN")
+    parser.add_argument("--tn_top_K", type=int, default=5, help="top k nearest for TN")
+    parser.add_argument("--tn_max_step", type=int, default=10, help="max step for TN")
 
-    parser.add_argument("--spd-model-path", type=str, help="SPD model path")
+    parser.add_argument("--spd_model_path", type=str, help="SPD model path")
     parser.add_argument("--device", type=str, help="cpu or cuda:0 or others, only valid to SPD inference")
-    parser.add_argument("--spd-conf-thres", type=float, default=0.5, help="bounding box conf filter for SPD inference")
+    parser.add_argument("--spd_conf_thres", type=float, default=0.5, help="bounding box conf filter for SPD inference")
 
 
-    parser.add_argument("--params-file", type=str)
+    parser.add_argument("--params_file", type=str)
 
-    parser.add_argument("--result-file", default="pred.json", type=str, help="result path")
+    parser.add_argument("--result_file", default="pred.json", type=str, help="result path")
 
     args = parser.parse_args()
 
@@ -59,6 +59,9 @@ if __name__ == '__main__':
     if args.pair_file:
         df = pd.read_csv(args.pair_file)
         pairs = df[['query_id', 'reference_id']].values.tolist()
+
+        pairs = filter_pair_list_by_np_dir(pairs, args.input_root)
+
 
         data_list = [(f"{p[0]}-{p[1]}", f"{p[0]}-{p[1]}") for p in pairs]
     else:
@@ -71,16 +74,17 @@ if __name__ == '__main__':
         pairs = product(query, reference)
         data_list = [(f"{p[0]}-{p[1]}", f"{p[0]}-{p[1]}") for p in pairs]
 
-    config = dict()
-    if args.input_store == 'oss':
-        config['oss_config'] = args.oss_config
+    # config = dict()
+    # if args.input_store == 'oss':
+    #     config['oss_config'] = args.oss_config
 
+    print('len(data_list) = ', len(data_list))
     dataset = ItemDataset(data_list,
-                          store_type=args.input_store,
+                          store_type='local',
                           data_type=DataType.NUMPY.type_name,
                           root=args.input_root,
                           trans_key_func=lambda x: x + '.npy',
-                          **config)
+                          )
 
     logger.info(f"Data to run {len(dataset)}")
 
@@ -118,7 +122,7 @@ if __name__ == '__main__':
 
     # override model config with param file
     if args.params_file:
-        reader = build_reader(args.input_store, DataType.JSON.type_name, **config)
+        reader = build_reader('local', DataType.JSON.type_name)
         param_result = reader.read(args.params_file)
         best_params = param_result['best']
         logger.info("best param {}", best_params)
@@ -135,8 +139,8 @@ if __name__ == '__main__':
         for pair_id, result in batch_result:
             total_result[pair_id] = result
 
-    output_store = args.input_store if args.output_store is None else args.output_store
+    output_store = 'local'
     if output_store == 'local' and not os.path.exists(args.output_root):
         os.makedirs(args.output_root, exist_ok=True)
-    writer = build_writer(output_store, DataType.JSON.type_name, **config)
+    writer = build_writer(output_store, DataType.JSON.type_name)
     writer.write(os.path.join(args.output_root, args.result_file), total_result)

@@ -158,6 +158,15 @@ def evaluate_macro(result_dict: Dict[str, Dict[str, Any]], video_set_dict: Dict[
     Parameters
     ----------
     result_dict: segment level Precision/Recall result of all the video pairs
+        In practice always be not full.
+        Example:
+            {
+            '53cb15bbf74e45379c68686648b3140a-7c62f68892f149048df819c6fe1cfec1':
+                {'precision': 0.9574467677682222, 'recall': 0.49300697795246745, 'name': '53cb15bbf74e45379c68686648b3140a-7c62f68892f149048df819c6fe1cfec1'},
+            '53cb15bbf74e45379c68686648b3140a-116cac33c57245fa8a6f44aee5579b84':
+                {'precision': 0.9999999774004089, 'recall': 0.7754455291223217, 'name': '53cb15bbf74e45379c68686648b3140a-116cac33c57245fa8a6f44aee5579b84'},
+                ...
+            }
     video_set_dict: video pairs split by different query set
 
     Returns
@@ -168,8 +177,8 @@ def evaluate_macro(result_dict: Dict[str, Dict[str, Any]], video_set_dict: Dict[
     macro_result_list = []
     for video_id in video_set_dict:
         # print('video_id = ', video_id)
-        precision_list = [result_dict[i]['precision'] for i in video_set_dict[video_id]]
-        recall_list = [result_dict[i]['recall'] for i in video_set_dict[video_id]]
+        precision_list = [result_dict[i]['precision'] for i in video_set_dict[video_id] if i in result_dict]
+        recall_list = [result_dict[i]['recall'] for i in video_set_dict[video_id] if i in result_dict]
         r, p = sum(recall_list)/len(recall_list), sum(precision_list)/len(precision_list)
         macro_result = (r, p, )
         macro_result_list.append(macro_result)

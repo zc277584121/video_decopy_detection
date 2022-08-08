@@ -514,11 +514,17 @@ class VCSL(object):
 
         pred_dict = reader.read(pred_file)
         eval_list = []
+        not_in_pred_key_num = 0
         for key in split_pairs:
+            if key not in pred_dict.keys():
+                not_in_pred_key_num += 1
+                # print('not_in_pred_ key = ', key)
+                continue
             if key in self.clip_gt:
                 eval_list += [{"name": key, "gt": self.clip_gt[key], "pred": pred_dict[key]}]
             else:
                 eval_list += [{"name": key, "gt": [], "pred": pred_dict[key]}]
+        print(' not in pred key num = ', not_in_pred_key_num)
         print(f"finish loading files, start evaluation...")
 
         process_pool = Pool(4)

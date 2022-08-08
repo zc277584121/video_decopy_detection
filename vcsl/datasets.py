@@ -27,6 +27,36 @@ import base64
 
 from utils import StoreType, DataType, build_reader
 
+def filter_pair_list_by_hdf5(pair_list, hdf5_file):
+    feature_file = h5py.File(hdf5_file, "r")
+    in_hdf5_num = 0
+    not_in_hdf5_num = 0
+    new_pair_list = []
+    for pair in pair_list:
+        if pair[0] in feature_file.keys() and pair[1] in feature_file.keys():
+            new_pair_list.append(pair)
+            in_hdf5_num += 1
+        else:
+            not_in_hdf5_num += 1
+    print(f"before filter num = {len(pair_list)}, in_hdf5_num = {in_hdf5_num}, not_in_hdf5_num = {not_in_hdf5_num}")
+    return new_pair_list
+
+def filter_pair_list_by_np_dir(pair_list, np_dir):
+    np_file_list = os.listdir(np_dir)
+    disk_pair_list = [file.split('.')[0] for file in np_file_list]
+    in_np_dir_num = 0
+    not_in_np_dir_num = 0
+    new_pair_list = []
+    for pair in pair_list:
+        pair_str = pair[0] + '-' + pair[1]
+        if pair_str in disk_pair_list:
+            new_pair_list.append(pair)
+            in_np_dir_num += 1
+        else:
+            not_in_np_dir_num += 1
+    print(f"before filter num = {len(pair_list)}, in_np_dir_num = {in_np_dir_num}, not_in_np_dir_num = {not_in_np_dir_num}")
+    return new_pair_list
+
 
 def base64_encode_image(data: np.ndarray) -> str:
     ret, data_bytes = cv2.imencode('.png', data)
@@ -84,16 +114,7 @@ class PairDataset(Dataset):
         self.pair_list = []
         self.root = root
         if self.root.endswith('hdf5'):
-            feature_file = h5py.File(self.root, "r")
-            in_hdf5_num = 0
-            not_in_hdf5_num = 0
-            for pair in pair_list:
-                if pair[0] in feature_file.keys() and pair[1] in feature_file.keys():
-                    self.pair_list.append(pair)
-                    in_hdf5_num += 1
-                else:
-                    not_in_hdf5_num += 1
-            print(f"self.root.endswith('hdf5'), in_hdf5_num = {in_hdf5_num}, not_in_hdf5_num = {not_in_hdf5_num}")
+            self.pair_list = filter_pair_list_by_hdf5(pair_list, self.root)
         else:
             self.pair_list = pair_list
 

@@ -95,7 +95,7 @@ def calcu_similarity_matrix(dataset, args):
                     if targets_feature_batch.shape[0] >= 4:
                         query_feature = queries_index_info[1]
                         if args.similarity_type.lower() == 'dns':
-                            batch_sim_matrix = dns_model.calculate_similarity_matrix(query_feature, targets_feature_batch).detach()[0] #batch size is 0
+                            batch_sim_matrix = dns_model.calculate_similarity_matrix(query_feature, targets_feature_batch).detach() #batch size is 0
                         elif args.similarity_type.lower() in ["cos", "chamfer"]:
                             _, _, batch_sim_matrix = sim_map_model.forward([(query_id, target_id, query_feature, targets_feature_batch)],
                                                                            normalize_input=False, similarity_type=args.similarity_type)[0] #batch size is 1 so use `[]`
@@ -105,7 +105,7 @@ def calcu_similarity_matrix(dataset, args):
                         batch_matrix_list.append(batch_sim_matrix)
                 sim_matrix = torch.concat(batch_matrix_list, dim=1)
                 sim_matrix = sim_matrix.cpu().numpy()
-                key = os.path.join(args.output_dir, f"{target_id}-{query_id}.npy")
+                key = os.path.join(args.output_dir, f"{query_id}-{target_id}.npy")
                 writer_pool.consume((key, sim_matrix))
         writer_pool.stop()
     else:  # pair
@@ -127,8 +127,8 @@ def calcu_similarity_matrix(dataset, args):
             else:
                 raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
 
-            for r_id, q_id, result in batch_result:
-                key = os.path.join(args.output_dir, f"{r_id}-{q_id}.npy")
+            for q_id, r_id, result in batch_result:
+                key = os.path.join(args.output_dir, f"{q_id}-{r_id}.npy")
                 writer_pool.consume((key, result))
         writer_pool.stop()
 
