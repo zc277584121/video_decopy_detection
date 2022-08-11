@@ -37,23 +37,60 @@ def center_crop(frame, desired_size):
     return frame[top: top + desired_size, left: left + desired_size, :]
 
 
-def load_video(video, all_frames=False):
+def load_video(video, all_frames=False, crop_resize=256):
     cv2.setNumThreads(3)
     cap = cv2.VideoCapture(video)
     fps = cap.get(cv2.CAP_PROP_FPS)
+    frame_count = cap.get(cv2.CAP_PROP_FRAME_COUNT)
+    print('fps = ', fps)
+    print('frame_count = ', frame_count)
+    duration = frame_count / fps / 60
+    print('duration = ', duration)
+
     if fps > 144 or fps is None:
+        print('Abnormal fps')
         fps = 25
     frames = []
     count = 0
+    print('fps = ', fps)
+
+
+    # while cap.isOpened():
+    #     ret = cap.grab()
+    #     if int(count % round(fps)) == 0 or all_frames:
+    #         print(count)
+    #         ret, frame = cap.retrieve()
+    #         if isinstance(frame, np.ndarray):
+    #             frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+    #             frames.append(center_crop(resize_frame(frame, 256), 256))
+    #         else:
+    #             break
+    #     count += 1
+    # # print('count = ', count)
+    # cap.release()
+    # return np.array(frames)
+
     while cap.isOpened():
-        ret = cap.grab()
-        if int(count % round(fps)) == 0 or all_frames:
-            ret, frame = cap.retrieve()
-            if isinstance(frame, np.ndarray):
-                frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
-                frames.append(center_crop(resize_frame(frame, 256), 256))
-            else:
-                break
+        # ret = cap.grab()
+        ret, frame = cap.read()
+        if ret:
+            if int(count % round(fps)) == 0 or all_frames:
+                # print(f'{count}/{int(frame_count)}')
+                # ret, frame = cap.retrieve()
+                if isinstance(frame, np.ndarray):
+                    frame = cv2.cvtColor(frame, cv2.COLOR_BGR2RGB)
+                    if crop_resize is not None:
+                        crop_frame = center_crop(resize_frame(frame, crop_resize), crop_resize)
+                    else:
+                        crop_frame = resize_frame(frame, 256)
+                    frames.append(crop_frame)
+                else:
+                    break
+        else:
+            break
+        if count > frame_count:
+            print('count > frame_count, break')
+            break
         count += 1
     # print('count = ', count)
     cap.release()
@@ -400,6 +437,8 @@ class VCSL(object):
         self.anno_file = os.path.join(datafolder, 'label_file_uuid_total.json')
         self.frames_all_file = os.path.join(datafolder, 'frames_all.csv')
         self.clip_gt = json.load(open(self.anno_file))
+        self.all_data_file_list = [os.path.join(self.video_root, video_file) for video_file in os.listdir(self.video_root)]
+        self.all_data_id_list = [video_path.split('/')[-1].split('.')[0].split('-')[0] for video_path in self.all_data_file_list]
 
         query_set = set()
         database_set = set()
@@ -564,3 +603,48 @@ class VCSL(object):
               f"query macro-Precision: {p:.2%}, "
               f"F1: {2 * r * p / (r + p):.2%}, "
               )
+
+class MPAA(object):
+    def __init__(self, video_root):
+        self.name = 'MPAA'
+        self.video_root = video_root
+        self.master = os.path.join(self.video_root, 'master')
+        self.all_root = os.path.join(self.video_root, 'all')
+        self.all_data_file_list = [os.path.join(self.master, video_file) for video_file in os.listdir(self.master)] \
+                                  + [os.path.join(self.all_root, video_file) for video_file in os.listdir(self.all_root)]
+        self.all_data_id_list = [path.split(os.path.sep)[-1] for path in self.all_data_file_list]
+        print('len of query_root = ', len(os.listdir(self.master)))
+        print('len of all_root = ', len(os.listdir(self.all_root)))
+        print('len of all_data_file_list = ', len(self.all_data_file_list))
+
+
+class MUSCLE_VCD(object):
+    def __init__(self, video_root, query='st2'):
+        self.name = 'MUSCLE_VCD'
+        self.video_root = video_root
+        self.master = os.path.join(self.video_root, 'master')
+        self.st1 = os.path.join(self.video_root, 'st1')
+        self.st2 = os.path.join(self.video_root, 'st2')
+        self.all_data_file_list = [os.path.join(self.master, video_file) for video_file in os.listdir(self.master)] \
+                                  + [os.path.join(self.st1, video_file) for video_file in os.listdir(self.st1)] \
+                                  + [os.path.join(self.st2, video_file) for video_file in os.listdir(self.st2)]
+        self.all_data_id_list = [path.split(os.path.sep)[-1] for path in self.all_data_file_list]
+        print('len of query_root = ', len(os.listdir(self.master)))
+        print('len of st1 = ', len(os.listdir(self.st1)))
+        print('len of st2 = ', len(os.listdir(self.st2)))
+        print('len of all_data_file_list = ', len(self.all_data_file_list))
+
+        self.queries = [file for file in os.listdir(getattr(self, query)) if file.endswith('mpg')]
+        self.database = [file for file in os.listdir(self.master) if file.endswith('mpg')]
+
+    def get_queries(self):
+        return self.queries
+
+    def get_database(self):
+        return self.database
+
+    def get_pairs(self):
+        return []
+
+    def get_files_dict(self):
+        return {}

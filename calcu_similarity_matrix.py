@@ -137,7 +137,7 @@ if __name__ == '__main__':
     formatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=80)
     parser = argparse.ArgumentParser(description='feature extracting', formatter_class=formatter)
     parser.add_argument('--dataset', type=str, default='VCSL',
-                        choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL'],
+                        choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL', 'MPAA', 'MUSCLE_VCD'],
                         help='Name of evaluation dataset.')
     parser.add_argument('--feature_path', type=str, required=True,
                         help='feature path or dir, it can be a hdf5 file or a dir which contains npy files')
@@ -178,5 +178,13 @@ if __name__ == '__main__':
         from datasets import VCSL
 
         dataset = VCSL(datafolder='./vcsl_data', split='val')
+
+    elif 'MPAA' in args.dataset:
+        from datasets import MPAA
+        dataset = MPAA(video_root=args.video_root)
+
+    elif 'MUSCLE_VCD' in args.dataset:
+        from datasets import MUSCLE_VCD
+        dataset = MUSCLE_VCD(video_root='./muscle_vcd')
 
     calcu_similarity_matrix(dataset, args)

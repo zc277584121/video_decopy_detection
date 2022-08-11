@@ -64,7 +64,7 @@ if __name__ == '__main__':
 
 
         data_list = [(f"{p[0]}-{p[1]}", f"{p[0]}-{p[1]}") for p in pairs]
-    else:
+    elif args.query_file and args.reference_file:
         query = pd.read_csv(args.query_file)
         query = query[['uuid']].values.tolist()
 
@@ -73,7 +73,14 @@ if __name__ == '__main__':
 
         pairs = product(query, reference)
         data_list = [(f"{p[0]}-{p[1]}", f"{p[0]}-{p[1]}") for p in pairs]
-
+    else:
+        data_list = []
+        sim_npy_files = os.listdir(args.input_root)
+        for sim_npy_file in sim_npy_files:
+            file_name = sim_npy_file[:-4]
+            query_id = file_name.split('-')[0]
+            ref_id = file_name.split('-')[1]
+            data_list.append((f"{query_id}-{ref_id}", f"{query_id}-{ref_id}"))
     # config = dict()
     # if args.input_store == 'oss':
     #     config['oss_config'] = args.oss_config
