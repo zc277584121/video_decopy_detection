@@ -5,6 +5,7 @@ import random
 import numpy as np
 from matplotlib import pyplot as plt
 import matplotlib.patches as patches
+import argparse
 
 
 def visual_one_np(np_path, save_dir='./visual_imgs', gt_box_list: List[List] = None, pred_box_list: List[List] = None,
@@ -29,7 +30,7 @@ def visual_one_np(np_path, save_dir='./visual_imgs', gt_box_list: List[List] = N
                                      width=width,
                                      height=height,
                                      linewidth=1,
-                                     edgecolor='cyan',
+                                     edgecolor='lime',
                                      fill=False)
 
             ax.add_patch(rect)
@@ -61,7 +62,8 @@ def visual_np_files(np_folder,
                     gt_file=None,
                     pred_file=None,
                     fps=1,
-                    sample_num=None):
+                    sample_num=None,
+                    ignore_none_res=True):
     random.seed(42)
     gt_dict = json.load(open(gt_file)) if gt_file is not None else None
     pred_dict = json.load(open(pred_file)) if pred_file is not None else None
@@ -73,19 +75,32 @@ def visual_np_files(np_folder,
         np_file_name = np_path.split(os.path.sep)[-1][:-4]
         gt_box_list = gt_dict[np_file_name] if gt_file is not None else None
         pred_box_list = pred_dict[np_file_name] if pred_file is not None else None
+
+        if ignore_none_res and \
+                (gt_box_list is None or len(gt_box_list) == 0) \
+                and (pred_box_list is None or len(pred_box_list) == 0):
+            print('none box, skip...')
+            continue
         visual_one_np(np_path, save_dir=save_dir, gt_box_list=gt_box_list, pred_box_list=pred_box_list, fps=fps)
 
 
 if __name__ == '__main__':
-    # visual_one_np(
-    #     '/home/zhangchen/zhangchen_workspace/video_decopy_detection/sim_matrix_npy/vcsl-dns_backbone-val_pairs-dns_sim/ffc548adbfe24a79b6ab7f444e2a8b98-fcb6fc1ea0984b43a96fb4296e0ae03f.npy',
-    #     save_dir='/home/zhangchen/zhangchen_workspace/video_decopy_detection/visual_imgs',
-    #     gt_box_list=[[18, 6, 57, 45]])
+    formatter = lambda prog: argparse.ArgumentDefaultsHelpFormatter(prog, max_help_position=80)
+    parser = argparse.ArgumentParser(description='feature extracting', formatter_class=formatter)
+    parser.add_argument('--sim_np_folder', type=str, required=True,
+                        help='similarity matrix npy dir which contains npy files.')
+    parser.add_argument("--pred_file", type=str,
+                        help='predict json file, can be none.')
+    parser.add_argument("--gt_file", type=str,
+                        help='ground truth json file, can be none.')
+    parser.add_argument("--save_dir", type=str,
+                        help='output save dir.')
+    parser.add_argument("--ignore_none_res", type=bool,
+                        help='if true, do not plot the matrix without gt and pred box. you can use it to draw import matrix which we should pay more attention to.')
+    args = parser.parse_args()
 
-    # visual_np_files('/home/zhangchen/zhangchen_workspace/video_decopy_detection/sim_matrix_npy/vcsl-dns_backbone-val_pairs-dns_sim/',
-    #                 gt_file='./vcsl_data/label_file_uuid_total.json',
-    #                 sample_num=10)
-
-    visual_np_files('/home/zhangchen/zhangchen_workspace/video_decopy_detection/sim_matrix_npy/muscle-dns_backbone-qd_pair-dns_sim',
-                    pred_file='./result/best_pred/muscle-dns_backbone-st2_pairs-dns_sim-DTW-pred.json',
-                    save_dir='/home/zhangchen/zhangchen_workspace/video_decopy_detection/visual_imgs/muscle-dns_backbone-st2_pairs-dns_sim-DTW')
+    visual_np_files(args.sim_np_folder,
+                    pred_file=args.pred_file,
+                    gt_file=args.gt_file,
+                    save_dir=args.save_dir,
+                    ignore_none_res=args.ignore_none_res)

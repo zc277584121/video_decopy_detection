@@ -648,3 +648,70 @@ class MUSCLE_VCD(object):
 
     def get_files_dict(self):
         return {}
+
+    def evaluate(self, pred_file, metric='f1'):
+        if metric.lower() == 'f1':
+            self.evaluate_f1(pred_file)
+        elif metric.lower() == 'map':
+            similarities = json.load(open(pred_file))
+            self.evaluate_map(similarities)
+
+    def evaluate_f1(self, pred_file):
+        self.clip_gt = json.load(open('./muscle_vcd/st2/gt_json.json'))
+
+        config = dict()
+        reader = build_reader('local', "json", **config)
+
+        pred_dict = reader.read(pred_file)
+        eval_list = []
+        not_in_pred_key_num = 0
+        for key in pred_dict.keys():
+            if key not in pred_dict.keys():
+                not_in_pred_key_num += 1
+                # print('not_in_pred_ key = ', key)
+                continue
+            if key in self.clip_gt:
+                eval_list += [{"name": key, "gt": self.clip_gt[key], "pred": pred_dict[key]}]
+            else:
+                eval_list += [{"name": key, "gt": [], "pred": pred_dict[key]}]
+        print(' not in pred key num = ', not_in_pred_key_num)
+        print(f"finish loading files, start evaluation...")
+
+        process_pool = Pool(4)
+        result_list = process_pool.map(run_eval, eval_list)
+        result_dict = {i['name']: i for i in result_list}
+
+        meta_pairs = {}
+        for key in self.clip_gt:
+            q_id = key.split('-')[0]
+            if q_id not in meta_pairs.keys():
+                meta_pairs[q_id] = [key]
+            else:
+                meta_pairs[q_id].append(key)
+        try:
+            feat, vta = pred_file.split('-')[:2]
+        except:
+            feat, vta = 'My-FEAT', 'My-VTA'
+
+        # Evaluated result on all video pairs including positive and negative copied pairs.
+        # The segment-level precision/recall can also indicate video-level performance since
+        # missing or false alarm lead to decrease on segment recall or precision.
+        r, p, frr, far = evaluate_micro(result_dict, 1)  # todo
+        print(f"Feature {feat} & VTA {vta}: ")
+        print(f"Overall segment-level performance, "
+              f"Recall: {r:.2%}, "
+              f"Precision: {p:.2%}, "
+              f"F1: {2 * r * p / (r + p):.2%}, "
+              )
+        print(f"video-level performance, "
+              f"FRR: {frr:.2%}, "
+              f"FAR: {far:.2%}, "
+              )
+
+        r, p, cnt = evaluate_macro(result_dict, meta_pairs)
+
+        print(f"query set cnt {cnt}, "
+              f"query macro-Recall: {r:.2%}, "
+              f"query macro-Precision: {p:.2%}, "
+              f"F1: {2 * r * p / (r + p):.2%}, "
+              )

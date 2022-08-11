@@ -3,7 +3,7 @@ import argparse
 if __name__ == '__main__':
     parser = argparse.ArgumentParser()
     parser.add_argument('--dataset', type=str, default='VCSL',
-                        choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL'],
+                        choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL', 'MPAA', 'MUSCLE_VCD'],
                         help='Name of evaluation dataset.')
     parser.add_argument("--anno_file", default="vcsl_data/label_file_uuid_total.json", type=str, help="gt label file")
     parser.add_argument("--pair_group_file", default="vcsl_data/split_meta_pairs.json",
@@ -42,5 +42,13 @@ if __name__ == '__main__':
         from datasets import VCSL
 
         dataset = VCSL(datafolder='./vcsl_data', split=args.split)
+
+    elif 'MPAA' in args.dataset:
+        from datasets import MPAA
+        dataset = MPAA(video_root=args.video_root)
+
+    elif 'MUSCLE_VCD' in args.dataset:
+        from datasets import MUSCLE_VCD
+        dataset = MUSCLE_VCD(video_root='./muscle_vcd')
 
     dataset.evaluate(args.pred_file, args.metric)

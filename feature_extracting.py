@@ -88,7 +88,7 @@ if __name__ == '__main__':
                         choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL', 'MPAA', 'MUSCLE_VCD'],
                         help='Name of evaluation dataset.')
     parser.add_argument('--feature_backbone', type=str, default='DnS_R50',
-                        choices=["DnS_R50", 'resnet50'],  # todo: more kinds of feature
+                        choices=["DnS_R50",] + timm.list_models(),  # todo: more kinds of feature
                         help='backbone to extract feature')
     parser.add_argument('--output_type', type=str, default='hdf5', choices=["hdf5", "npy"],
                         help='output feature type.')
