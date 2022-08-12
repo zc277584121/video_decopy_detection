@@ -120,7 +120,7 @@ if __name__ == '__main__':
     elif 'VCSL' in args.dataset:
         from datasets import VCSL
 
-        dataset = VCSL(datafolder='./vcsl_data', split='all', video_root=args.video_root)
+        dataset = VCSL(datafolder='./vcsl_data', split='val', video_root=args.video_root)
 
     elif 'MPAA' in args.dataset:
         from datasets import MPAA
