@@ -87,6 +87,10 @@ python temporal_alignment.py \
         --params_file ./result/tune/vcsl-dns_backbone-val_pairs-dns_sim-DTW/result.json
 ```
 
+to use default param, just ignore `--params_file`.  
+to use default all query-database pairs, just ignore `--pair_file`.  
+to use spd model, add `--spd-model-path data/spd_models/${FEAT}.pt`  and `--device cuda:0`
+
 ### Step4.Evaluate metrics
 F1 metric:
 ```shell
@@ -104,5 +108,18 @@ python evaluate.py \
 [//]: # (python evaluate.py --dataset VCSL --pred_file ./result/output/sim_vcsl.json --split val --metric map)
 
 [//]: # (```)
+
+### Step5.Visualization similarity matrix
+```shell
+python visualization.py \
+        --sim_np_folder /home/zhangchen/zhangchen_workspace/video_decopy_detection/sim_matrix_npy/muscle-dns_backbone-st2_pair-cos_sim \
+        --pred_file ./result/default_pred/muscle-dns_backbone-st2_pairs-cos_sim-TN-pred.json \
+        --gt_file ./muscle_vcd/st2/gt_json.json \
+        --save_dir ./visual_imgs/muscle-dns_backbone-st2_pairs-cos_sim-TN_default \
+        --ignore_none_res true
+```
+
+
+
 
 

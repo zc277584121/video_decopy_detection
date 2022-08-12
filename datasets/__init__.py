@@ -629,7 +629,7 @@ class MUSCLE_VCD(object):
                                   + [os.path.join(self.st1, video_file) for video_file in os.listdir(self.st1)] \
                                   + [os.path.join(self.st2, video_file) for video_file in os.listdir(self.st2)]
         self.all_data_id_list = [path.split(os.path.sep)[-1] for path in self.all_data_file_list]
-        print('len of query_root = ', len(os.listdir(self.master)))
+        print('len of master = ', len(os.listdir(self.master)))
         print('len of st1 = ', len(os.listdir(self.st1)))
         print('len of st2 = ', len(os.listdir(self.st2)))
         print('len of all_data_file_list = ', len(self.all_data_file_list))
@@ -657,7 +657,7 @@ class MUSCLE_VCD(object):
             self.evaluate_map(similarities)
 
     def evaluate_f1(self, pred_file):
-        self.clip_gt = json.load(open('./muscle_vcd/st2/gt_json.json'))
+        self.clip_gt = json.load(open(os.path.join(self.st2, 'gt_json.json')))
 
         config = dict()
         reader = build_reader('local', "json", **config)
