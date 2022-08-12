@@ -1,0 +1,15 @@
+ST1Query1 movie27
+ST1Query2 not_in_db
+ST1Query3 movie8
+ST1Query4 not_in_db
+ST1Query5 movie44
+ST1Query6 movie76
+ST1Query7 not_in_db
+ST1Query8 not_in_db
+ST1Query9 movie9
+ST1Query10 movie21
+ST1Query11 movie37
+ST1Query12 not_in_db
+ST1Query13 movie11
+ST1Query14 movie17
+ST1Query15 movie68
