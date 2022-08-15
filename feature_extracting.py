@@ -4,7 +4,7 @@ from pathlib import Path
 
 import timm
 
-from datasets import load_video
+from datasets import load_video, load_video_by_video_decode
 from tqdm import tqdm
 import h5py
 import torch
@@ -14,12 +14,18 @@ import numpy as np
 random.seed(42)
 
 
+
+
+
 def get_one_video_hdf5_features(video_id, video_path, feature_extractor, max_interval=256, device='cuda:0',
                                 output_name='./features/features.hdf5', crop_resize=256):
     """
     To avoid OOM, `max_interval` is used for split video tensor to several clip chunks, and concat them after feature extracting.
     """
     video_numpy = load_video(video_path, crop_resize=crop_resize)
+    if (video_numpy.shape == (0,)):
+        print('video_numpy.shape is zero, try to use video decode to extract feature...')
+        video_numpy = load_video_by_video_decode(video_path, crop_resize=crop_resize)
 
 
     chunk_num = video_numpy.shape[0] // max_interval + 1
@@ -31,7 +37,7 @@ def get_one_video_hdf5_features(video_id, video_path, feature_extractor, max_int
         if feature_extractor.__class__.__name__ == 'DnSR50FeatureExtractor':
             chunk = torch.from_numpy(chunk).to(device)
         video_features = feature_extractor(chunk)#.to(device)
-        #video_features = video_features.detach().cpu().numpy()
+        video_features = video_features.detach().cpu().numpy()
         feature_list.append(video_features)
     video_features = np.concatenate(feature_list, axis=0)
 

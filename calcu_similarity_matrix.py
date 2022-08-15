@@ -139,6 +139,8 @@ if __name__ == '__main__':
     parser.add_argument('--dataset', type=str, default='VCSL',
                         choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL', 'MPAA', 'MUSCLE_VCD'],
                         help='Name of evaluation dataset.')
+    parser.add_argument('--video_root', type=str,
+                        help='video root path, not necessarily required.')
     parser.add_argument('--feature_path', type=str, required=True,
                         help='feature path or dir, it can be a hdf5 file or a dir which contains npy files')
     parser.add_argument("--similarity_type", default='cos',

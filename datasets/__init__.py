@@ -1,6 +1,8 @@
 import json
 import os
+from pprint import pprint
 
+import h5py
 import numpy as np
 import pickle as pk
 import cv2
@@ -73,6 +75,7 @@ def load_video(video, all_frames=False, crop_resize=256):
     while cap.isOpened():
         # ret = cap.grab()
         ret, frame = cap.read()
+        # print('ret = ', ret)
         if ret:
             if int(count % round(fps)) == 0 or all_frames:
                 # print(f'{count}/{int(frame_count)}')
@@ -95,6 +98,21 @@ def load_video(video, all_frames=False, crop_resize=256):
     # print('count = ', count)
     cap.release()
     return np.array(frames)
+
+
+def load_video_by_video_decode(video_path, crop_resize=256):
+    from towhee import ops
+    decode_op = ops.video_decode.ffmpeg(start_time=None, end_time=None, sample_type='time_step_sample', args={'time_step': 1})
+    frame_list = []
+    for frame in decode_op(video_path):
+        # print(frame)
+        if crop_resize is not None:
+            crop_frame = center_crop(resize_frame(frame, crop_resize), crop_resize)
+        else:
+            crop_frame = resize_frame(frame, 256)
+        frame_list.append(crop_frame)
+    video_frames_np = np.array(frame_list)
+    return video_frames_np
 
 
 class CC_WEB_VIDEO(object):
@@ -605,7 +623,7 @@ class VCSL(object):
               )
 
 class MPAA(object):
-    def __init__(self, video_root):
+    def __init__(self, video_root, hdf5_file='./features/mpaa_features.hdf5'):
         self.name = 'MPAA'
         self.video_root = video_root
         self.master = os.path.join(self.video_root, 'master')
@@ -616,6 +634,32 @@ class MPAA(object):
         print('len of query_root = ', len(os.listdir(self.master)))
         print('len of all_root = ', len(os.listdir(self.all_root)))
         print('len of all_data_file_list = ', len(self.all_data_file_list))
+
+        feature_file = h5py.File(hdf5_file, "r")
+        feature_keys = feature_file.keys()
+        # print(feature_keys)
+        # for fk in feature_keys:
+        #     print(fk)
+        #     print(feature_file[fk][:].shape)
+
+        self.queries = [file for file in os.listdir(self.all_root) if file in feature_keys]
+        self.database = [file for file in os.listdir(self.master) if file in feature_keys]
+
+        print(f'\nLen of self.query in hdf5 file = {len(self.queries)}'
+        f', while all folder contains {len(os.listdir(self.all_root))}. '
+              f'\nThere are {len(os.listdir(self.all_root)) - len(self.queries)} folder file not in hdf5, and they are:')
+        pprint([file for file in os.listdir(self.all_root) if file not in self.queries])
+
+        print(f'len of self.database in hdf5 file = {len(self.database)},'
+        f'while master folders contains {len(os.listdir(self.master))}. '
+        f'\nThere are {len(os.listdir(self.master)) - len(self.database)} folder file not in hdf5, and they are:')
+        pprint([file for file in os.listdir(self.master) if file not in self.database])
+
+    def get_queries(self):
+        return self.queries
+
+    def get_database(self):
+        return self.database
 
 
 class MUSCLE_VCD(object):
