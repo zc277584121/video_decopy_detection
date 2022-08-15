@@ -8,8 +8,7 @@ from datasets import load_video
 from tqdm import tqdm
 import h5py
 import torch
-from model.feature_extractor import DnSR50FeatureExtractor
-from model.feature_extractor import TimmFeatureExtractor
+from model.feature_extractor import DnSR50FeatureExtractor, TimmFeatureExtractor, IscFeatureExtractor
 import numpy as np
 
 random.seed(42)
@@ -31,8 +30,8 @@ def get_one_video_hdf5_features(video_id, video_path, feature_extractor, max_int
         print('chunk.shape=', chunk.shape)
         if feature_extractor.__class__.__name__ == 'DnSR50FeatureExtractor':
             chunk = torch.from_numpy(chunk).to(device)
-        video_features = feature_extractor(chunk).to(device)
-        video_features = video_features.detach().cpu().numpy()
+        video_features = feature_extractor(chunk)#.to(device)
+        #video_features = video_features.detach().cpu().numpy()
         feature_list.append(video_features)
     video_features = np.concatenate(feature_list, axis=0)
 
@@ -56,6 +55,10 @@ def get_hdf5_features(dataset, args):
     elif args.feature_backbone in timm.list_models():
         crop_resize = None
         feature_extractor = TimmFeatureExtractor(model_name=args.feature_backbone, device=args.device)
+    elif args.feature_backbone == 'ISC':
+        crop_resize = None
+        feature_extractor = IscFeatureExtractor(device=args.device)
+
 
     all_video_path_lists = []
     i = 0
@@ -74,8 +77,9 @@ def get_hdf5_features(dataset, args):
                                                       crop_resize=crop_resize)
                 print('feature.shape =', feature.shape)
                 # pass
-            except:
+            except Exception as e:
                 print('error!!!\n')
+                print(e)
                 f.write(video_path + '\n')
                 continue
             print('\n')
@@ -88,7 +92,7 @@ if __name__ == '__main__':
                         choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL', 'MPAA', 'MUSCLE_VCD'],
                         help='Name of evaluation dataset.')
     parser.add_argument('--feature_backbone', type=str, default='DnS_R50',
-                        choices=["DnS_R50",] + timm.list_models(),  # todo: more kinds of feature
+                        choices=["DnS_R50", 'resnet50', 'ISC'],  # todo: more kinds of feature
                         help='backbone to extract feature')
     parser.add_argument('--output_type', type=str, default='hdf5', choices=["hdf5", "npy"],
                         help='output feature type.')
