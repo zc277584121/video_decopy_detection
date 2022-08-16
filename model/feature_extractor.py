@@ -146,3 +146,32 @@ class IscFeatureExtractor(nn.Module):
         features = features.cpu().detach().squeeze()
         return features
 
+class DinoFeatureExtractor(nn.Module): 
+    def __init__(self, device):
+        super().__init__()
+        self.model = xcit_medium_24_p8 = torch.hub.load('facebookresearch/dino:main', 'dino_xcit_medium_24_p8')
+        self.device = device
+        self.model.to(self.device)
+        self.tfms = transforms.Compose([
+            transforms.Resize((512,512)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)),])
+    
+    def forward(self, x:np.ndarray):
+        img_tensor_list = []
+        for img_np in x:
+            img = PILImage.fromarray(img_np.astype('uint8'), 'RGB')
+            img_tensor_list.append(self.tfms(img).to(self.device))
+        video_tensor = torch.stack(img_tensor_list)
+        self.model.eval()
+        with torch.no_grad():
+            features = self.model(video_tensor)
+        features = features.cpu().detach().squeeze()
+        return features
+
+
+
+
+
+     
+
