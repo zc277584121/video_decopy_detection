@@ -83,11 +83,20 @@ def calcu_similarity_matrix(dataset, args):
         for queries_index_info in queries_generator:
             queries_index_infos.append(queries_index_info)
         print('\n> Calculate query-target similarities')
+
+
+        # exist_files = os.listdir('./sim_matrix_npy/mpaa-dns_backbone-qd_pair-dns_sim')
+
         for targets_index_info in targets_generator:
             for queries_index_info in queries_index_infos:
                 batch_matrix_list = []
                 query_id = queries_index_info[0]
                 target_id = targets_index_info[0]
+
+                # npy_file = f'{query_id}-{target_id}.npy'
+                # if npy_file in exist_files:
+                #     # print('already exist, skip...')
+                #     continue
 
                 for batch_idx in range(
                         targets_index_info[1].shape[0] // batch_sz + 1):  # we can reduce batch_sz to avoid OOM
@@ -157,6 +166,8 @@ if __name__ == '__main__':
                         help='Number of workers used for video loading.')
     parser.add_argument('--device', type=str, default='cuda:0',
                         help='ID of the GPU.')
+    parser.add_argument('--batch_sz_sim', type=int, default=2048,
+                        help='To avoid OOM, you can reduce this value when calculating dns similarity matrix.')
     args = parser.parse_args()
 
     dataset = None

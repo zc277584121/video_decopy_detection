@@ -17,6 +17,8 @@ if __name__ == '__main__':
     parser.add_argument("--reference_file", "-G", type=str, help="data file")
     parser.add_argument("--pair_file", type=str, help="data file")
 
+    parser.add_argument("--dataset", type=str, help="dataset name, when using MPAA, please specify it, else not need.")
+
     # parser.add_argument("--input_store", type=str, help="store of input data: oss|local", default="oss")
     parser.add_argument("--input_root", type=str, help="root path of input data", default="")
 
@@ -78,8 +80,20 @@ if __name__ == '__main__':
         sim_npy_files = os.listdir(args.input_root)
         for sim_npy_file in sim_npy_files:
             file_name = sim_npy_file[:-4]
-            query_id = file_name.split('-')[0]
-            ref_id = file_name.split('-')[1]
+            if args.dataset == 'MPAA':
+                file_ext_set = {'wmv', 'flv', 'out', 'MPG', 'vog', 'mpg', 'mov', 'VOB', 'avi', 'sh', 'txt', 'vob',
+                                'rmvb', 'mpeg', 'mp4'}
+                split_plan_num = 0
+                for file_ext in file_ext_set:
+                    if len(file_name.split(f'.{file_ext}-')) == 2:
+                        query_id = file_name.split(f'.{file_ext}-')[0] + f'.{file_ext}'
+                        ref_id = file_name.split(f'.{file_ext}-')[1]
+                        split_plan_num += 1
+                if split_plan_num != 1:
+                    raise RuntimeError(f'{sim_npy_file} can not split well.')
+            else:
+                query_id = file_name.split('-')[0]
+                ref_id = file_name.split('-')[1]
             data_list.append((f"{query_id}-{ref_id}", f"{query_id}-{ref_id}"))
     # config = dict()
     # if args.input_store == 'oss':

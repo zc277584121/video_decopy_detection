@@ -437,7 +437,7 @@ class SVD(object):
 
 
 class VCSL(object):
-    def __init__(self, datafolder, split='val', video_root=''):
+    def __init__(self, datafolder, split='val', video_root=None):
 
         # label_json_file = 'label_file_uuid_total.json'
         self.name = 'VCSL'
@@ -455,8 +455,9 @@ class VCSL(object):
         self.anno_file = os.path.join(datafolder, 'label_file_uuid_total.json')
         self.frames_all_file = os.path.join(datafolder, 'frames_all.csv')
         self.clip_gt = json.load(open(self.anno_file))
-        self.all_data_file_list = [os.path.join(self.video_root, video_file) for video_file in os.listdir(self.video_root)]
-        self.all_data_id_list = [video_path.split('/')[-1].split('.')[0].split('-')[0] for video_path in self.all_data_file_list]
+        if video_root is not None:
+            self.all_data_file_list = [os.path.join(self.video_root, video_file) for video_file in os.listdir(self.video_root)]
+            self.all_data_id_list = [video_path.split('/')[-1].split('.')[0].split('-')[0] for video_path in self.all_data_file_list]
 
         query_set = set()
         database_set = set()
@@ -655,12 +656,18 @@ class MPAA(object):
         f'\nThere are {len(os.listdir(self.master)) - len(self.database)} folder file not in hdf5, and they are:')
         pprint([file for file in os.listdir(self.master) if file not in self.database])
 
+
     def get_queries(self):
         return self.queries
 
     def get_database(self):
         return self.database
 
+    def get_pairs(self):
+        return []
+
+    def get_files_dict(self):
+        return {}
 
 class MUSCLE_VCD(object):
     def __init__(self, video_root, query='st2'):
