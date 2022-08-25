@@ -1,20 +1,54 @@
 import json
 import os
 from pprint import pprint
+from typing import List
 
 import h5py
 import numpy as np
 import pickle as pk
 import cv2
 
-from collections import OrderedDict
+from collections import OrderedDict, defaultdict
 
 import pandas as pd
 from sklearn.metrics import average_precision_score
 from multiprocessing import Pool
 
+# from analyse_result import get_mpaa_video_file_path
 from utils import build_reader
 from vcsl.metric import evaluate_micro, evaluate_macro, precision_recall
+import re
+
+
+def match_pattern(string, pattern):
+    if re.search(pattern, string) is None:
+        return False
+    else:
+        return True
+
+
+def get_mpaa_video_file_path(pair_str, video_root='/home/zhangchen/zhangchen_workspace/dataset/frank/MPAA',
+                             return_all_path=True):
+    file_ext_set = {'wmv', 'flv', 'out', 'MPG', 'vog', 'mpg', 'mov', 'VOB', 'avi', 'sh', 'txt', 'vob',
+                    'rmvb', 'mpeg', 'mp4'}
+    split_plan_num = 0
+    for file_ext in file_ext_set:
+        if len(pair_str.split(f'.{file_ext}-')) == 2:
+            query_id = pair_str.split(f'.{file_ext}-')[0] + f'.{file_ext}'
+            ref_id = pair_str.split(f'.{file_ext}-')[1]
+            split_plan_num += 1
+    if split_plan_num != 1:
+        raise RuntimeError(f'{pair_str} can not split well.')
+    # print(pair_str)
+    # print(query_id, ref_id)
+    # print('')
+    if return_all_path:
+        query_path = os.path.join(video_root, 'all', query_id)
+        ref_path = os.path.join(video_root, 'master', ref_id)
+    else:
+        query_path = query_id
+        ref_path = ref_id
+    return query_path, ref_path
 
 
 def run_eval(input_dict):
@@ -55,7 +89,6 @@ def load_video(video, all_frames=False, crop_resize=256):
     frames = []
     count = 0
     print('fps = ', fps)
-
 
     # while cap.isOpened():
     #     ret = cap.grab()
@@ -102,7 +135,8 @@ def load_video(video, all_frames=False, crop_resize=256):
 
 def load_video_by_video_decode(video_path, crop_resize=256):
     from towhee import ops
-    decode_op = ops.video_decode.ffmpeg(start_time=None, end_time=None, sample_type='time_step_sample', args={'time_step': 1})
+    decode_op = ops.video_decode.ffmpeg(start_time=None, end_time=None, sample_type='time_step_sample',
+                                        args={'time_step': 1})
     frame_list = []
     for frame in decode_op(video_path):
         # print(frame)
@@ -456,8 +490,10 @@ class VCSL(object):
         self.frames_all_file = os.path.join(datafolder, 'frames_all.csv')
         self.clip_gt = json.load(open(self.anno_file))
         if video_root is not None:
-            self.all_data_file_list = [os.path.join(self.video_root, video_file) for video_file in os.listdir(self.video_root)]
-            self.all_data_id_list = [video_path.split('/')[-1].split('.')[0].split('-')[0] for video_path in self.all_data_file_list]
+            self.all_data_file_list = [os.path.join(self.video_root, video_file) for video_file in
+                                       os.listdir(self.video_root)]
+            self.all_data_id_list = [video_path.split('/')[-1].split('.')[0].split('-')[0] for video_path in
+                                     self.all_data_file_list]
 
         query_set = set()
         database_set = set()
@@ -623,6 +659,7 @@ class VCSL(object):
               f"F1: {2 * r * p / (r + p):.2%}, "
               )
 
+
 class MPAA(object):
     def __init__(self, video_root, hdf5_file='./features/mpaa_features.hdf5'):
         self.name = 'MPAA'
@@ -630,7 +667,8 @@ class MPAA(object):
         self.master = os.path.join(self.video_root, 'master')
         self.all_root = os.path.join(self.video_root, 'all')
         self.all_data_file_list = [os.path.join(self.master, video_file) for video_file in os.listdir(self.master)] \
-                                  + [os.path.join(self.all_root, video_file) for video_file in os.listdir(self.all_root)]
+                                  + [os.path.join(self.all_root, video_file) for video_file in
+                                     os.listdir(self.all_root)]
         self.all_data_id_list = [path.split(os.path.sep)[-1] for path in self.all_data_file_list]
         print('len of query_root = ', len(os.listdir(self.master)))
         print('len of all_root = ', len(os.listdir(self.all_root)))
@@ -647,15 +685,54 @@ class MPAA(object):
         self.database = [file for file in os.listdir(self.master) if file in feature_keys]
 
         print(f'\nLen of self.query in hdf5 file = {len(self.queries)}'
-        f', while all folder contains {len(os.listdir(self.all_root))}. '
+              f', while all folder contains {len(os.listdir(self.all_root))}. '
               f'\nThere are {len(os.listdir(self.all_root)) - len(self.queries)} folder file not in hdf5, and they are:')
         pprint([file for file in os.listdir(self.all_root) if file not in self.queries])
 
         print(f'len of self.database in hdf5 file = {len(self.database)},'
-        f'while master folders contains {len(os.listdir(self.master))}. '
-        f'\nThere are {len(os.listdir(self.master)) - len(self.database)} folder file not in hdf5, and they are:')
+              f'while master folders contains {len(os.listdir(self.master))}. '
+              f'\nThere are {len(os.listdir(self.master)) - len(self.database)} folder file not in hdf5, and they are:')
         pprint([file for file in os.listdir(self.master) if file not in self.database])
-
+        self.trick_format_dict = {
+            'slowmotion': 'slowmotion',
+            'mashup': 'mashup',
+            'tvepisodecam': 'tvepisodecam',
+            'dark': 'dark',
+            'tvclip': 'tvclip',
+            'kbps': r'kbps|Kbps',
+            'rotation': 'rotation',
+            'different w*h': r'\d+x\d+',
+            'withsubs': 'withsubs',
+            'graphicoverlay': 'graphicoverlay',
+            'segmentremoval': 'segmentremoval',
+            'blur': r'blur|Blur',
+            'Cropping': 'Cropping',
+            'Scaling_HalfRes': 'Scaling_HalfRes',
+            'MirroredHorizontally': 'MirroredHorizontally',
+            'blackboxinsertion': 'blackboxinsertion',
+            'ModifyContrast': 'ModifyContrast',
+            'digest': 'digest',
+            'MSUNoiseGenerator': 'MSUNoiseGenerator',
+            'frameremoval': 'frameremoval',
+            'rip': 'rip',
+            'echo': 'echo',
+            'findedges': 'findedges',
+            'flip': 'flip',
+            'insertclip': 'insertclip',
+            'mosaic': 'mosaic',
+            'noise': 'noise',
+            'replicate': 'replicate',
+            'rgb': 'rgb',
+            'rotate': 'rotate',
+            'scale': 'scale',
+            'transition': 'transition',
+            'gaussian': 'gaussian',
+            'overlay': 'overlay',
+            'contrast': 'contrast',
+            'ghosting': 'ghosting',
+            'lightning': 'lightning',
+            'trailer': 'trailer',
+        }
 
     def get_queries(self):
         return self.queries
@@ -668,6 +745,119 @@ class MPAA(object):
 
     def get_files_dict(self):
         return {}
+
+    def evaluate(self, pred_file, metric='f1', filter_thresh=20):
+        if metric.lower() == 'f1':
+            return self.evaluate_f1(pred_file, filter_thresh=filter_thresh)
+
+    def get_each_trick_dict(self, json_dict):
+        each_trick_pred_dict = defaultdict(dict)
+        for pair_str, pre_value in json_dict.items():
+            query_file_name, ref_file_name = get_mpaa_video_file_path(pair_str, return_all_path=False)
+            for trick_name, trick_pattern in self.trick_format_dict.items():
+                if match_pattern(query_file_name, trick_pattern):
+                    each_trick_pred_dict[trick_name][pair_str] = pre_value
+        return each_trick_pred_dict
+
+    def evaluate_f1(self, pred_file, filter_thresh=20):
+        all_file_list = os.listdir(self.all_root)
+
+        for trick_name, trick_pattern in self.trick_format_dict.items():
+            file_num = 0
+            for file_name in all_file_list:
+                if match_pattern(file_name, trick_pattern):
+                    file_num += 1
+            print(f'In all folder, trick_name: "{trick_name}" file num = {file_num}')
+
+        self.gt_dict = json.load(open('./mpaa_ground_truth/gt_json.json'))
+        all_trick_gt_dict = self.get_each_trick_dict(self.gt_dict)
+        print('pred_file = ', pred_file)
+        pred_dict = json.load(open(pred_file))
+
+        all_res_dict = dict()
+        # get pred_dict for each copy trick
+        all_trick_pred_dict = self.get_each_trick_dict(pred_dict)
+        for trick_name, trick_pred_dict in all_trick_pred_dict.items():
+            all_res_dict[trick_name] = self.evaluate_pred_dict_f1(trick_pred_dict, all_trick_gt_dict[trick_name],
+                                                                  name=trick_name,
+                                                                  save_trick_prefix=
+                                                                  os.path.basename(pred_file).split('.')[0],
+                                                                  filter_thresh=filter_thresh)
+
+        print('=' * 100)
+        all_res_dict['all'] = self.evaluate_pred_dict_f1(pred_dict, self.gt_dict, name='all',
+                                                         filter_thresh=filter_thresh)
+        print('\n' + '=' * 100)
+        return all_res_dict
+
+    def filter_gt(self, pred_dict, gt_dict):
+        filtered_gt_dict = dict()
+        pred_not_in_gt = 0
+        for gt_pair_str, gt_value in gt_dict.items():
+            if gt_pair_str in pred_dict:
+                filtered_gt_dict[gt_pair_str] = gt_value
+            else:
+                pred_not_in_gt += 1
+                # print(f'gt_pair_str "{gt_pair_str}" not in pred_dict')
+        # print(f'number of pred not in gt = {pred_not_in_gt}')
+        return filtered_gt_dict
+
+    def evaluate_pred_dict_f1(self, pred_dict, gt_dict, name='all', save_trick_prefix=None, filter_thresh=20):
+        print('\n' + '=' * 100)
+        print(f'for {name} case, result is:')
+        filtered_gt_dict = self.filter_gt(pred_dict, gt_dict)
+        TP = 0
+        TN = 0
+        FP = 0
+        FN = 0
+        for pred_pair_str, pred_value in pred_dict.items():
+            if pred_value is None or len(pred_value) == 0 \
+                    or self.filter_short_pred(pred_value, filter_thresh=filter_thresh):
+                if len(filtered_gt_dict[pred_pair_str]) > 0:
+                    FN += 1
+                else:
+                    TN += 1
+            else:
+                if len(filtered_gt_dict[pred_pair_str]) > 0:
+                    TP += 1
+                else:
+                    FP += 1
+
+        print(f'TP = {TP}, TN = {TN}, FP = {FP}, FN = {FN}')
+        print(f'TP + TN + FP + FN = {TP + TN + FP + FN}')
+        precision = TP / (TP + FP) if (TP + FP) != 0 else 0
+        recall = TP / (TP + FN) if (TP + FN) != 0 else 0
+        f1 = 2 * recall * precision / (recall + precision) if (recall + precision) != 0 else 0
+        frr = FN / (FN + TP) if (FN + TP) != 0 else 0
+        far = FP / (FP + TN) if (FP + TN) != 0 else 0
+        print(f"Overall segment-level performance, "
+              f"Recall: {recall:.2%}, "
+              f"Precision: {precision:.2%}, "
+              f"F1: {f1:.2%}, "
+              )
+        print(f"video-level performance, "
+              f"FRR: {frr:.2%}, "
+              f"FAR: {far:.2%}, "
+              )
+        if save_trick_prefix is not None:
+            with open(f'./mpaa_ground_truth/each_trick/{save_trick_prefix}-{name}-gt.json', 'w') as f:
+                f.write(json.dumps(gt_dict, indent=4))
+            with open(f'./mpaa_ground_truth/each_trick/{save_trick_prefix}-{name}-pred.json', 'w') as f:
+                f.write(json.dumps(pred_dict, indent=4))
+        return {
+            'precision': precision,
+            'recall': recall,
+            'f1': f1,
+            'frr': frr,
+            'far': far
+        }
+
+    def filter_short_pred(self, pred_value: List[List], filter_thresh: float):
+        for time_info in pred_value:
+            if ((time_info[2] - time_info[0]) + (time_info[3] - time_info[1])) / 2.0 > filter_thresh:
+                return False
+        return True
+
 
 class MUSCLE_VCD(object):
     def __init__(self, video_root, query='st2'):
@@ -699,6 +889,18 @@ class MUSCLE_VCD(object):
 
     def get_files_dict(self):
         return {}
+
+    def get_p_n_ratio(self, gt_dict, pred_dict=None):
+        pos_num = 0
+        neg_num = 0
+        for pair_name, pred_t_list in gt_dict.items():
+            if pred_dict is not None and pair_name not in pred_dict.keys():
+                continue
+            if pred_t_list is None or len(pred_t_list) == 0:
+                neg_num += 1
+            else:
+                pos_num += 1
+        return pos_num / neg_num
 
     def evaluate(self, pred_file, metric='f1'):
         if metric.lower() == 'f1':
@@ -747,7 +949,7 @@ class MUSCLE_VCD(object):
         # Evaluated result on all video pairs including positive and negative copied pairs.
         # The segment-level precision/recall can also indicate video-level performance since
         # missing or false alarm lead to decrease on segment recall or precision.
-        r, p, frr, far = evaluate_micro(result_dict, 1)  # todo
+        r, p, frr, far = evaluate_micro(result_dict, self.get_p_n_ratio(self.clip_gt))  # todo
         print(f"Feature {feat} & VTA {vta}: ")
         print(f"Overall segment-level performance, "
               f"Recall: {r:.2%}, "
@@ -766,3 +968,4 @@ class MUSCLE_VCD(object):
               f"query macro-Precision: {p:.2%}, "
               f"F1: {2 * r * p / (r + p):.2%}, "
               )
+        # slowmotion mashup tvepisodecam dark tvclip kbps rotation different withsubs graphicoverlay segmentremoval blur Cropping Scaling_HalfRes MirroredHorizontally blackboxinsertion ModifyContrast digest MSUNoiseGenerator frameremoval rip echo findedges flip insertclip mosaic noise replicate rgb rotate scale transition gaussian overlay contrast ghosting lightnin

@@ -9,11 +9,16 @@ import argparse
 
 
 def visual_one_np(np_path, save_dir='./visual_imgs', gt_box_list: List[List] = None, pred_box_list: List[List] = None,
-                  fps=1):
+                  sub_folder=None, fps=1):
     video_feature = np.load(np_path)
     np_file_name = np_path.split(os.path.sep)[-1][:-4]
     print('video_feature.shape = ', video_feature.shape)
-    plt.figure()
+    max_l = max(video_feature.shape[0], video_feature.shape[1])
+    min_l = min(video_feature.shape[0], video_feature.shape[1])
+    if max_l / min_l > 5 :
+        plt.figure(figsize=(min(video_feature.shape[0] // 8 + 1, 15), min(video_feature.shape[0] // 8 + 1, 15)))
+    else:
+        plt.figure()
     plt.imshow(video_feature)
 
     ax = plt.gca()
@@ -53,6 +58,10 @@ def visual_one_np(np_path, save_dir='./visual_imgs', gt_box_list: List[List] = N
             ax.add_patch(rect)
     if not os.path.exists(save_dir):
         os.mkdir(save_dir)
+    if sub_folder is not None:
+        save_dir = os.path.join(save_dir, sub_folder)
+        if not os.path.exists(save_dir):
+            os.mkdir(save_dir)
     save_path = os.path.join(save_dir, np_file_name + '.png')
     plt.savefig(save_path)
 
@@ -73,15 +82,26 @@ def visual_np_files(np_folder,
 
     for np_path in np_path_list:
         np_file_name = np_path.split(os.path.sep)[-1][:-4]
+        if np_file_name not in gt_dict or np_file_name not in pred_dict:
+            continue
         gt_box_list = gt_dict[np_file_name] if gt_file is not None else None
         pred_box_list = pred_dict[np_file_name] if pred_file is not None else None
 
         if ignore_none_res and \
                 (gt_box_list is None or len(gt_box_list) == 0) \
                 and (pred_box_list is None or len(pred_box_list) == 0):
-            print('none box, skip...')
+            # print('none box, skip...')
             continue
-        visual_one_np(np_path, save_dir=save_dir, gt_box_list=gt_box_list, pred_box_list=pred_box_list, fps=fps)
+        if gt_box_list != [] and pred_box_list != []:
+            sub_folder = 'TP'
+        elif gt_box_list == [] and pred_box_list != []:
+            sub_folder = 'FP'
+        elif gt_box_list != [] and pred_box_list == []:
+            sub_folder = 'FN'
+        else:
+            sub_folder = 'TN'
+        visual_one_np(np_path, save_dir=save_dir, gt_box_list=gt_box_list, pred_box_list=pred_box_list,
+                      sub_folder=sub_folder, fps=fps)
 
 
 if __name__ == '__main__':

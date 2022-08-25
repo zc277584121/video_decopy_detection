@@ -216,7 +216,12 @@ def evaluate_micro(result_dict: Dict[str, Dict[str, Any]], ratio: float = 1) -> 
     fr_list = [i for i in result_dict if result_dict[i]['precision'] == 1 and result_dict[i]['recall'] == 0]
     fa_list = [i for i in result_dict if result_dict[i]['precision'] == 0 and result_dict[i]['recall'] == 1]
 
-    # total positive samples are len(result_list) * ratio / (1 + ratio)
-    # total negative samples are len(result_list) * 1 / (1 + ratio)
+    # total positive samples: p, total negative samples: n
+    # p / n = ratio, p + n = len(result_list)
+    # =>
+    # p = len(result_list) * ratio / (1 + ratio)
+    # n = len(result_list) * 1 / (1 + ratio)
+    # frr = FN / (FN + TP) = len(fr_list) / p
+    # far = FP / (FP + TN) = len(fa_list) / n
     frr, far = (1 + ratio) / ratio * len(fr_list) / len(result_list), (1 + ratio) * len(fa_list) / len(result_list)
     return r, p, frr, far

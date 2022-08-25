@@ -282,7 +282,7 @@ class VideoSimMapModel(object):
     def forward(self,
                 data: List[Tuple[str, str, Union[np.array, torch.Tensor], Union[np.array, torch.Tensor]]],
                 # use_cuda=True,
-                normalize_input=False,
+                normalize_input=True,
                 similarity_type="cos",
                 ) -> List[Any]:
         use_cuda = True if 'cuda' in self.device else False

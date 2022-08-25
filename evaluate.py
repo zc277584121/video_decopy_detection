@@ -15,6 +15,8 @@ if __name__ == '__main__':
     parser.add_argument("--local_set_csv", type=str, help="save result csv file with query set, endswith '.csv' ")
     parser.add_argument("--pool_size", type=int, default=16, help="multiprocess pool size of evaluation")
     parser.add_argument("--ratio_pos_neg", type=float, default=1, help="ratio between positive and negative samples")
+    parser.add_argument("--filter_thresh", type=float, default=20, help="ratio between positive and negative samples")
+    parser.add_argument("--video_root", type=str, default=None, help="Useful only when MPAA")
 
     parser.add_argument("--metric", type=str, required=True, choices=['f1', 'map'],
                         help="f1 metric or map metric, the input json file must have corresponding format")
@@ -50,5 +52,7 @@ if __name__ == '__main__':
     elif 'MUSCLE_VCD' in args.dataset:
         from datasets import MUSCLE_VCD
         dataset = MUSCLE_VCD(video_root='./muscle_vcd')
-
-    dataset.evaluate(args.pred_file, args.metric)
+    if args.filter_thresh is not None:
+        dataset.evaluate(args.pred_file, args.metric, filter_thresh=args.filter_thresh)
+    else:
+        dataset.evaluate(args.pred_file, args.metric)

@@ -107,7 +107,7 @@ def calcu_similarity_matrix(dataset, args):
                             batch_sim_matrix = dns_model.calculate_similarity_matrix(query_feature, targets_feature_batch).detach() #batch size is 0
                         elif args.similarity_type.lower() in ["cos", "chamfer"]:
                             _, _, batch_sim_matrix = sim_map_model.forward([(query_id, target_id, query_feature, targets_feature_batch)],
-                                                                           normalize_input=False, similarity_type=args.similarity_type)[0] #batch size is 1 so use `[]`
+                                                                           normalize_input=True, similarity_type=args.similarity_type)[0] #batch size is 1 so use `[]`
                             batch_sim_matrix = torch.Tensor(batch_sim_matrix)
                         else:
                             raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
@@ -132,7 +132,7 @@ def calcu_similarity_matrix(dataset, args):
                     sim_matrix = dns_model.calculate_similarity_matrix(query, target).detach().cpu().numpy() #batch size is 0
                     batch_result.append([query_id, target_id, sim_matrix])
             elif args.similarity_type.lower() in ["cos", "chamfer"]:
-                batch_result = sim_map_model.forward(batch_data, normalize_input=False, similarity_type=args.similarity_type) #batch size > 0
+                batch_result = sim_map_model.forward(batch_data, normalize_input=True, similarity_type=args.similarity_type) #batch size > 0
             else:
                 raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
 

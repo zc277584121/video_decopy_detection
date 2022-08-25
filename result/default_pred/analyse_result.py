@@ -1,11 +1,18 @@
 import json
 import os
+import cv2
 
-def _change_s_format(seconds):
+
+def change_s_2_time(seconds):
     m, s = divmod(seconds, 60)
     h, m = divmod(m, 60)
     res = "%02d:%02d:%02d" % (h, m, s)
     return res
+
+def change_time_2_s(t_str):
+    t_list = t_str.split(':')
+    second = int(t_list[0]) * 3600 + int(t_list[1]) * 60 + int(t_list[2])
+    return second
 
 
 def filter_json_result(json_file):
@@ -24,6 +31,7 @@ def filter_json_result(json_file):
     with open(new_path, 'w') as f:
         f.write(json.dumps(new_dict, indent=4))
 
+
 def change_time_format(json_file):
     pre_dict = json.load(open(json_file))
     new_dict = dict()
@@ -32,7 +40,7 @@ def change_time_format(json_file):
         for clip_time_infos in v:
             new_clip_time_infos = []
             for t in clip_time_infos:
-                new_t = _change_s_format(t)
+                new_t = change_s_2_time(t)
                 new_clip_time_infos.append(new_t)
             new_v.append(new_clip_time_infos)
         new_dict[k] = new_v
