@@ -733,6 +733,25 @@ class MPAA(object):
             'lightning': 'lightning',
             'trailer': 'trailer',
         }
+        self.special_trick_dict = {
+            'other': self._match_other_files,
+            'without_trailer': self._match_all_without_trailer
+        }
+
+    def _match_other_files(self, file_name):
+        match = True
+        for trick_name, trick_pattern in self.trick_format_dict.items():
+            if match_pattern(file_name, trick_pattern):
+                match = False
+        return match
+
+    def _match_all_without_trailer(self, file_name):
+        match = True
+        for trick_name, trick_pattern in self.trick_format_dict.items():
+            if trick_name == 'trailer' and match_pattern(file_name, trick_pattern):
+                match = False
+        return match
+
 
     def get_queries(self):
         return self.queries
@@ -750,12 +769,16 @@ class MPAA(object):
         if metric.lower() == 'f1':
             return self.evaluate_f1(pred_file, filter_thresh=filter_thresh)
 
+
     def get_each_trick_dict(self, json_dict):
         each_trick_pred_dict = defaultdict(dict)
         for pair_str, pre_value in json_dict.items():
             query_file_name, ref_file_name = get_mpaa_video_file_path(pair_str, return_all_path=False)
             for trick_name, trick_pattern in self.trick_format_dict.items():
                 if match_pattern(query_file_name, trick_pattern):
+                    each_trick_pred_dict[trick_name][pair_str] = pre_value
+            for trick_name, trick_func in self.special_trick_dict.items():
+                if trick_func(query_file_name):
                     each_trick_pred_dict[trick_name][pair_str] = pre_value
         return each_trick_pred_dict
 
@@ -766,6 +789,13 @@ class MPAA(object):
             file_num = 0
             for file_name in all_file_list:
                 if match_pattern(file_name, trick_pattern):
+                    file_num += 1
+            print(f'In all folder, trick_name: "{trick_name}" file num = {file_num}')
+
+        for trick_name, trick_func in self.special_trick_dict.items():
+            file_num = 0
+            for file_name in all_file_list:
+                if trick_func(file_name):
                     file_num += 1
             print(f'In all folder, trick_name: "{trick_name}" file num = {file_num}')
 

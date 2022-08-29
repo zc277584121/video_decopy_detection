@@ -15,7 +15,7 @@ if __name__ == '__main__':
     parser.add_argument("--local_set_csv", type=str, help="save result csv file with query set, endswith '.csv' ")
     parser.add_argument("--pool_size", type=int, default=16, help="multiprocess pool size of evaluation")
     parser.add_argument("--ratio_pos_neg", type=float, default=1, help="ratio between positive and negative samples")
-    parser.add_argument("--filter_thresh", type=float, default=20, help="ratio between positive and negative samples")
+    parser.add_argument("--filter_thresh", type=float, default=None, help="ratio between positive and negative samples")
     parser.add_argument("--video_root", type=str, default=None, help="Useful only when MPAA")
 
     parser.add_argument("--metric", type=str, required=True, choices=['f1', 'map'],
