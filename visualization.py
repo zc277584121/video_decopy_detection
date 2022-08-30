@@ -16,7 +16,7 @@ def visual_one_np(np_path, save_dir='./visual_imgs', gt_box_list: List[List] = N
     max_l = max(video_feature.shape[0], video_feature.shape[1])
     min_l = min(video_feature.shape[0], video_feature.shape[1])
     if max_l / min_l > 5 :
-        plt.figure(figsize=(min(video_feature.shape[0] // 8 + 1, 15), min(video_feature.shape[0] // 8 + 1, 15)))
+        plt.figure(figsize=(min(max_l // 8 + 1, 15), min(max_l // 8 + 1, 15)))
     else:
         plt.figure()
     plt.imshow(video_feature)

@@ -482,8 +482,8 @@ class VCSL(object):
         #     lines = f.readlines()
         #     gt_dict = json.loads(''.join(lines))
         #     self.annotation = gt_dict
-        pair_file = os.path.join(datafolder, 'pair_file_' + split + '.csv')
-        self.df = pd.read_csv(pair_file)
+        self.pair_file = os.path.join(datafolder, 'pair_file_' + split + '.csv')
+        self.df = pd.read_csv(self.pair_file)
         # data_list = df[['query_id', 'reference_id']].values.tolist()
         self.split_meta_file = os.path.join(datafolder, 'split_meta_pairs.json')
         self.anno_file = os.path.join(datafolder, 'label_file_uuid_total.json')
@@ -521,7 +521,10 @@ class VCSL(object):
     def get_database(self):
         return self.database
 
-    def get_pairs(self):
+    def get_pairs(self, pair_file=None):
+        if pair_file is not None:
+            self.pair_file = pair_file
+            self.df = pd.read_csv(self.pair_file)
         pairs = self.df[['query_id', 'reference_id']].values.tolist()
         return pairs
 

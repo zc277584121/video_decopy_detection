@@ -151,7 +151,9 @@ class FineGrainedStudent(nn.Module):
             if query_mask is not None and target_mask is not None:
                 sim_mask = torch.einsum('bik,bjk->bij', query_mask.unsqueeze(-1), target_mask.unsqueeze(-1))
         else:
+            # (1, T1, h1*w1, Dim) , (1, T2, h2*w2, Dim)
             sim = torch.einsum('aiok,bjpk->aiopjb', query, target) # a is B1, b is B2, i is T1, j is T2, o is h1*w1, p is h2*w2, k is Dim
+            # (1, T1, h1*w1, h2*w2, T2, 1)
             sim = self.f2f_sim(sim) # (B1, T1, T2, B2), B1=1, B2=1
             sim = rearrange(sim, 'a i j b -> (a b) i j') #(B1 * B2, T1, T2)
             if query_mask is not None and target_mask is not None:

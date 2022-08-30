@@ -32,12 +32,12 @@ class DnSR50FeatureExtractor(nn.Module):
                 if nm in self.layers:
                     # region_vectors = self.rpool(x)
                     s = self.layers[nm]
-                    region_vectors = F.max_pool2d(x, [s, s], int(np.ceil(s / 2)))
-                    region_vectors = F.normalize(region_vectors, p=2, dim=1)
+                    region_vectors = F.max_pool2d(x, [s, s], int(np.ceil(s / 2))) # x, for layer1: (T, 256, 64, 64), s=28; for layer2: (T, 512, 32, 32), s=14; for layer3: (T, 1024, 16, 16), s=6; for layer4: (T, 2048, 8, 8), s=3
+                    region_vectors = F.normalize(region_vectors, p=2, dim=1) # layer1: (T, 256, 3, 3); layer2: (T, 512, 3, 3); layer3: (T, 1024, 3, 3); layer4: (T, 2048, 3, 3)
                     tensors.append(region_vectors)
         for i in range(len(tensors)):
             tensors[i] = F.normalize(F.adaptive_max_pool2d(tensors[i], tensors[-1].shape[2:]), p=2, dim=1)
-        x = torch.cat(tensors, 1)
+        x = torch.cat(tensors, 1) # D_sum = 256 + 512 + 1024 + 2048 = 3840, #(T, D_sum=3840, 3, 3)
         x = x.view(x.shape[0], x.shape[1], -1).permute(0, 2, 1) # (T, h*w, D_sum)
         x = F.normalize(x, p=2, dim=-1)
         return x
