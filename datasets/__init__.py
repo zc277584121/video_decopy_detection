@@ -768,7 +768,7 @@ class MPAA(object):
     def get_files_dict(self):
         return {}
 
-    def evaluate(self, pred_file, metric='f1', filter_thresh=20):
+    def evaluate(self, pred_file, metric='f1', filter_thresh=0):
         if metric.lower() == 'f1':
             return self.evaluate_f1(pred_file, filter_thresh=filter_thresh)
 
@@ -785,7 +785,7 @@ class MPAA(object):
                     each_trick_pred_dict[trick_name][pair_str] = pre_value
         return each_trick_pred_dict
 
-    def evaluate_f1(self, pred_file, filter_thresh=20):
+    def evaluate_f1(self, pred_file, filter_thresh=0):
         all_file_list = os.listdir(self.all_root)
 
         for trick_name, trick_pattern in self.trick_format_dict.items():
@@ -835,7 +835,7 @@ class MPAA(object):
         # print(f'number of pred not in gt = {pred_not_in_gt}')
         return filtered_gt_dict
 
-    def evaluate_pred_dict_f1(self, pred_dict, gt_dict, name='all', save_trick_prefix=None, filter_thresh=20):
+    def evaluate_pred_dict_f1(self, pred_dict, gt_dict, name='all', save_trick_prefix=None, filter_thresh=0):
         print('\n' + '=' * 100)
         print(f'for {name} case, result is:')
         filtered_gt_dict = self.filter_gt(pred_dict, gt_dict)

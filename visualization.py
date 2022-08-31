@@ -9,16 +9,19 @@ import argparse
 
 
 def visual_one_np(np_path, save_dir='./visual_imgs', gt_box_list: List[List] = None, pred_box_list: List[List] = None,
-                  sub_folder=None, fps=1):
+                  sub_folder=None, fps=1, figure_size=None):
     video_feature = np.load(np_path)
     np_file_name = np_path.split(os.path.sep)[-1][:-4]
     print('video_feature.shape = ', video_feature.shape)
     max_l = max(video_feature.shape[0], video_feature.shape[1])
     min_l = min(video_feature.shape[0], video_feature.shape[1])
-    if max_l / min_l > 5 :
-        plt.figure(figsize=(min(max_l // 8 + 1, 15), min(max_l // 8 + 1, 15)))
+    if figure_size is not None:
+        plt.figure(figsize=(figure_size, figure_size))
     else:
-        plt.figure()
+        if max_l / min_l > 5 :
+            plt.figure(figsize=(min(max_l // 8 + 1, 15), min(max_l // 8 + 1, 15)))
+        else:
+            plt.figure()
     plt.imshow(video_feature)
 
     ax = plt.gca()
@@ -72,7 +75,8 @@ def visual_np_files(np_folder,
                     pred_file=None,
                     fps=1,
                     sample_num=None,
-                    ignore_none_res=True):
+                    ignore_none_res=True,
+                    figure_size=None):
     random.seed(42)
     gt_dict = json.load(open(gt_file)) if gt_file is not None else None
     pred_dict = json.load(open(pred_file)) if pred_file is not None else None
@@ -101,7 +105,7 @@ def visual_np_files(np_folder,
         else:
             sub_folder = 'TN'
         visual_one_np(np_path, save_dir=save_dir, gt_box_list=gt_box_list, pred_box_list=pred_box_list,
-                      sub_folder=sub_folder, fps=fps)
+                      sub_folder=sub_folder, fps=fps, figure_size=figure_size)
 
 
 if __name__ == '__main__':
@@ -115,6 +119,8 @@ if __name__ == '__main__':
                         help='ground truth json file, can be none.')
     parser.add_argument("--save_dir", type=str,
                         help='output save dir.')
+    parser.add_argument("--figure_size", type=int, default=None,
+                        help='Custom figure size.')
     parser.add_argument("--ignore_none_res", type=bool,
                         help='if true, do not plot the matrix without gt and pred box. you can use it to draw import matrix which we should pay more attention to.')
     args = parser.parse_args()
@@ -123,4 +129,5 @@ if __name__ == '__main__':
                     pred_file=args.pred_file,
                     gt_file=args.gt_file,
                     save_dir=args.save_dir,
-                    ignore_none_res=args.ignore_none_res)
+                    ignore_none_res=args.ignore_none_res,
+                    figure_size=args.figure_size)

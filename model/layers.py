@@ -112,7 +112,7 @@ class Attention(nn.Module):
 
     def forward(self, x):
         if self.norm:
-            weights = self.context_vector(x)
+            weights = self.context_vector(x) # torch.norm(self.context_vector.weight, dim=1) = tensor([1.0000], grad_fn=<CopyBackwards>)
             weights = torch.add(torch.div(weights, 2.), .5)
         else:
             x_tr = torch.tanh(self.transform(x))
