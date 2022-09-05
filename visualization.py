@@ -86,7 +86,7 @@ def visual_np_files(np_folder,
 
     for np_path in np_path_list:
         np_file_name = np_path.split(os.path.sep)[-1][:-4]
-        if np_file_name not in gt_dict or np_file_name not in pred_dict:
+        if (gt_dict is not None and np_file_name not in gt_dict) or np_file_name not in pred_dict:
             continue
         gt_box_list = gt_dict[np_file_name] if gt_file is not None else None
         pred_box_list = pred_dict[np_file_name] if pred_file is not None else None

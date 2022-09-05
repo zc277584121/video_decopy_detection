@@ -62,20 +62,6 @@ def calcu_similarity_matrix(dataset, args):
     targets_generator = load_features(dataset.get_database(), args, dns_model=dns_model)
     queries_generator = load_features(dataset.get_queries(), args, dns_model=dns_model)
 
-    pair_dataset = PairDataset(query_list=None,
-                          gallery_list=None,
-                          pair_list=dataset.get_pairs(args.pair_file),
-                          file_dict=dataset.get_files_dict(),
-                          root=args.feature_path,
-                          store_type='local',
-                          trans_key_func=lambda x: x + ".npy",
-                          data_type="numpy",
-                          )
-    pair_loader = DataLoader(pair_dataset, collate_fn=lambda x: x,
-                        batch_size=4,
-                        num_workers=0 if args.similarity_type.lower() == 'dns' else 4)#args.workers) #todo
-
-
     if args.pair_file is None: # query_reference
         batch_sz = 2048 if 'batch_sz_sim' not in args else args.batch_sz_sim
         print('\n> Extract features of the query videos')
@@ -118,6 +104,18 @@ def calcu_similarity_matrix(dataset, args):
                 writer_pool.consume((key, sim_matrix))
         writer_pool.stop()
     else:  # pair
+        pair_dataset = PairDataset(query_list=None,
+                          gallery_list=None,
+                          pair_list=dataset.get_pairs(args.pair_file),
+                          file_dict=dataset.get_files_dict(),
+                          root=args.feature_path,
+                          store_type='local',
+                          trans_key_func=lambda x: x + ".npy",
+                          data_type="numpy",
+                          )
+        pair_loader = DataLoader(pair_dataset, collate_fn=lambda x: x, batch_size=4,
+                num_workers=0 if args.similarity_type.lower() == 'dns' else 4)#args.workers) #todo
+        
         if not os.path.exists(args.output_dir):
             os.makedirs(args.output_dir, exist_ok=True)
 
