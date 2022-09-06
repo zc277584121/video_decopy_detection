@@ -12,7 +12,7 @@ python feature_extracting.py \
         --output_name ./features/vcsl-dns_backbone-features.hdf5 \
         --video_root /your_dataset_root/VCSL
 ```
-    
+
 ### Step2. Calculate similarity matrix
 query-database-wise without pair_file, DnS similarity
 ```shell
@@ -22,6 +22,7 @@ python calcu_similarity_matrix.py \
         --similarity_type DnS \
         --dns_student_type attention \
         --output_dir ./sim_matrix_npy/vcsl-dns_backbone-qd_pair-dns_sim
+        --video_root /your_dataset_root/VCSL
 ```
 using pair_file, DnS similarity
 ```shell
@@ -32,6 +33,7 @@ python calcu_similarity_matrix.py \
         --pair_file ./vcsl_data/pair_file_val.csv \
         --dns_student_type attention \
         --output_dir ./sim_matrix_npy/vcsl-dns_backbone-val_pairs-dns_sim
+        --video_root /your_dataset_root/VCSL
 ```
 
 query-database-wise without pair_file, cos similarity
@@ -41,6 +43,7 @@ python calcu_similarity_matrix.py \
         --feature_path ./features/vcsl_feature.hdf5 \
         --similarity_type cos \
         --output_dir ./sim_matrix_npy/vcsl-dns_backbone-qd_pair-cos_sim
+        --video_root /your_dataset_root/VCSL
 ```
 using pair_file, cos similarity
 ```shell
@@ -50,6 +53,7 @@ python calcu_similarity_matrix.py \
         --similarity_type cos \
         --pair_file ./vcsl_data/pair_file_val.csv \
         --output_dir ./sim_matrix_npy/vcsl-dns_backbone-val_pairs-cos_sim
+        --video_root /your_dataset_root/VCSL
 ```
 
 ### Step3. Video temporal alignment
@@ -88,6 +92,10 @@ python temporal_alignment.py \
         --params_file ./result/tune/vcsl-dns_backbone-val_pairs-dns_sim-DTW/result.json
 ```
 
+For MPAA dataset, add `--dataset MPAA`.
+
+Without pair file, just omit `--pair_file`
+
 To use default param, just omit `--params_file`.    
 
 To use default all query-database pairs, just omit `--pair_file`.   
@@ -117,6 +125,9 @@ python visualization.py \
         --save_dir ./visual_imgs/muscle-dns_backbone-st2_pairs-cos_sim-TN_default \
         --ignore_none_res true
 ```
+
+To show similarity matrix for predictions only, just ommit `--gt_file`.
+
 ![](vis_demo.png)
 
 
@@ -148,9 +159,8 @@ AUTHORS OR COPYRIGHT HOLDERS BE LIABLE FOR ANY CLAIM, DAMAGES OR OTHER
 LIABILITY, WHETHER IN AN ACTION OF CONTRACT, TORT OR OTHERWISE, ARISING FROM,
 OUT OF OR IN CONNECTION WITH THE SOFTWARE OR THE USE OR OTHER DEALINGS IN THE
 SOFTWARE.
-``` 
+```
 
 
 ## Acknowledgments
 This code is based on [VCSL](https://github.com/alipay/VCSL) and [DnS](https://github.com/mever-team/distill-and-select).  
-
