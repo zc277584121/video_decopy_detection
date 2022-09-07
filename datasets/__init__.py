@@ -664,7 +664,7 @@ class VCSL(object):
 
 
 class MPAA(object):
-    def __init__(self, video_root, hdf5_file='./features/mpaa_features.hdf5'):
+    def __init__(self, video_root, hdf5_file=None):
         self.name = 'MPAA'
         self.video_root = video_root
         self.master = os.path.join(self.video_root, 'master')
@@ -677,25 +677,30 @@ class MPAA(object):
         print('len of all_root = ', len(os.listdir(self.all_root)))
         print('len of all_data_file_list = ', len(self.all_data_file_list))
 
-        feature_file = h5py.File(hdf5_file, "r")
-        feature_keys = feature_file.keys()
-        # print(feature_keys)
-        # for fk in feature_keys:
-        #     print(fk)
-        #     print(feature_file[fk][:].shape)
 
-        self.queries = [file for file in os.listdir(self.all_root) if file in feature_keys]
-        self.database = [file for file in os.listdir(self.master) if file in feature_keys]
 
-        print(f'\nLen of self.query in hdf5 file = {len(self.queries)}'
-              f', while all folder contains {len(os.listdir(self.all_root))}. '
-              f'\nThere are {len(os.listdir(self.all_root)) - len(self.queries)} folder file not in hdf5, and they are:')
-        pprint([file for file in os.listdir(self.all_root) if file not in self.queries])
+        self.queries = [file for file in os.listdir(self.all_root) if not (file.endswith('txt') or file.endswith('idx') or file.endswith('sh') or file.endswith('out')) ]
+        self.database = [file for file in os.listdir(self.master) if not (file.endswith('txt') or file.endswith('idx') or file.endswith('sh') or file.endswith('out'))]
 
-        print(f'len of self.database in hdf5 file = {len(self.database)},'
-              f'while master folders contains {len(os.listdir(self.master))}. '
-              f'\nThere are {len(os.listdir(self.master)) - len(self.database)} folder file not in hdf5, and they are:')
-        pprint([file for file in os.listdir(self.master) if file not in self.database])
+        if hdf5_file is not None:
+            feature_file = h5py.File(hdf5_file, "r")
+            feature_keys = feature_file.keys()
+            print(feature_keys)
+            for fk in feature_keys:
+                print(fk)
+                print(feature_file[fk][:].shape)
+            self.queries = [file for file in os.listdir(self.all_root) if file in feature_keys]
+            self.database = [file for file in os.listdir(self.master) if file in feature_keys]
+
+            print(f'\nLen of self.query in hdf5 file = {len(self.queries)}'
+                  f', while all folder contains {len(os.listdir(self.all_root))}. '
+                  f'\nThere are {len(os.listdir(self.all_root)) - len(self.queries)} folder file not in hdf5, and they are:')
+            pprint([file for file in os.listdir(self.all_root) if file not in self.queries])
+
+            print(f'len of self.database in hdf5 file = {len(self.database)},'
+                  f'while master folders contains {len(os.listdir(self.master))}. '
+                  f'\nThere are {len(os.listdir(self.master)) - len(self.database)} folder file not in hdf5, and they are:')
+            pprint([file for file in os.listdir(self.master) if file not in self.database])
         self.trick_format_dict = {
             'slowmotion': 'slowmotion',
             'mashup': 'mashup',
@@ -845,7 +850,7 @@ class MPAA(object):
         FN = 0
         for pred_pair_str, pred_value in pred_dict.items():
             if pred_value is None or len(pred_value) == 0 \
-                    or self.filter_short_pred(pred_value, filter_thresh=filter_thresh):
+                    or filter_short_pred(pred_value, filter_thresh=filter_thresh):
                 if len(filtered_gt_dict[pred_pair_str]) > 0:
                     FN += 1
                 else:
@@ -884,12 +889,6 @@ class MPAA(object):
             'frr': frr,
             'far': far
         }
-
-    def filter_short_pred(self, pred_value: List[List], filter_thresh: float):
-        for time_info in pred_value:
-            if ((time_info[2] - time_info[0]) + (time_info[3] - time_info[1])) / 2.0 > filter_thresh:
-                return False
-        return True
 
 
 class MUSCLE_VCD(object):
