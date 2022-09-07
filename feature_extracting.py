@@ -110,9 +110,9 @@ if __name__ == '__main__':
                         help='video root dir.')
     parser.add_argument('--device', type=str, default='cuda:0',
                         help='device,CPU or GPU.')
-    parser.add_argument('--chkpt_dir', type=str, default='',
+    parser.add_argument('--chkpt_dir', type=str, default='', required=False,
                         help='Checkpoint directory for MAE.')
-    parser.add_argument('--mae_arch', type=str, default='mae_vit_large_patch16',
+    parser.add_argument('--mae_arch', type=str, default='mae_vit_large_patch16', required=False,
                         help='Arch for ViT.')
     args = parser.parse_args()
 
