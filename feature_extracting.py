@@ -8,13 +8,10 @@ from datasets import load_video, load_video_by_video_decode
 from tqdm import tqdm
 import h5py
 import torch
-from model.feature_extractor import DnSR50FeatureExtractor, TimmFeatureExtractor, IscFeatureExtractor, DinoFeatureExtractor
+from model.feature_extractor import DnSR50FeatureExtractor, TimmFeatureExtractor, IscFeatureExtractor, DinoFeatureExtractor, MAEFeatureExtractor
 import numpy as np
 
 random.seed(42)
-
-
-
 
 
 def get_one_video_hdf5_features(video_id, video_path, feature_extractor, max_interval=256, device='cuda:0',
@@ -67,6 +64,9 @@ def get_hdf5_features(dataset, args):
     elif args.feature_backbone == 'DINO':
         crop_resize = None
         feature_extractor = DinoFeatureExtractor(device=args.device)
+    elif args.feature_backbone == 'MAE':
+        crop_resize = None
+        feature_extractor = MAEFeatureExtractor(device=args.device, chkpt_dir=args.chkpt_dir, arch=args.mae_arch)
 
     all_video_path_lists = []
     i = 0
@@ -100,7 +100,7 @@ if __name__ == '__main__':
                         choices=["FIVR-200K", "FIVR-5K", "CC_WEB_VIDEO", "SVD", "EVVE", 'VCSL', 'MPAA', 'MUSCLE_VCD'],
                         help='Name of evaluation dataset.')
     parser.add_argument('--feature_backbone', type=str, default='DnS_R50',
-                        choices=["DnS_R50", 'ISC', 'DINO'] + timm.list_models(),
+                        choices=["DnS_R50", 'ISC', 'DINO', 'MAE'] + timm.list_models(),
                         help='backbone to extract feature')
     parser.add_argument('--output_type', type=str, default='hdf5', choices=["hdf5", "npy"],
                         help='output feature type.')
@@ -109,7 +109,11 @@ if __name__ == '__main__':
     parser.add_argument('--video_root', type=str, required=True,
                         help='video root dir.')
     parser.add_argument('--device', type=str, default='cuda:0',
-                        help='ID of the GPU.')
+                        help='device,CPU or GPU.')
+    parser.add_argument('--chkpt_dir', type=str, default='', required=False,
+                        help='Checkpoint directory for MAE.')
+    parser.add_argument('--mae_arch', type=str, default='mae_vit_large_patch16', required=False,
+                        help='Arch for ViT.')
     args = parser.parse_args()
 
     dataset = None

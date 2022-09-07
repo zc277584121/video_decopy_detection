@@ -10,6 +10,8 @@ from PIL import Image as PILImage
 from model.layers import *
 from timm.models.factory import create_model
 import torchvision.transforms as transforms
+from prepare_model import prepare_model
+
 
 class DnSR50FeatureExtractor(nn.Module):
 
@@ -146,6 +148,7 @@ class IscFeatureExtractor(nn.Module):
         features = features.cpu().detach().squeeze()
         return features
 
+
 class DinoFeatureExtractor(nn.Module): 
     def __init__(self, device):
         super().__init__()
@@ -170,8 +173,27 @@ class DinoFeatureExtractor(nn.Module):
         return features
 
 
+class MAEFeatureExtractor(nn.Module):
+    def __init__(self, chkpt_dir, device='cpu', arch='mae_vit_large_patch16'):
+        super().__init__()
+        self.model = prepare_model(chkpt_dir, arch, device)
+        self.device = device
+        self.model.to(self.device)
+        self.tfms = transforms.Compose([
+            transforms.Resize((224, 224)),
+            transforms.ToTensor(),
+            transforms.Normalize((0.485, 0.456, 0.406), (0.229, 0.224, 0.225)), ])
 
-
-
-     
-
+    def forward(self, x: np.ndarray):
+        img_tensor_list = []
+        for img_np in x:
+            img = PILImage.fromarray(img_np.astype('uint8'), 'RGB')
+            y = self.tfms(img).to(self.device)
+            y = y.to(torch.float32)
+            img_tensor_list.append(y)
+        video_tensor = torch.stack(img_tensor_list)
+        self.model.eval()
+        with torch.no_grad():
+            features = self.model.forward_features(video_tensor)
+        features = features.cpu().detach().squeeze()
+        return features
