@@ -176,7 +176,7 @@ class DinoFeatureExtractor(nn.Module):
 class MAEFeatureExtractor(nn.Module):
     def __init__(self, chkpt_dir, device='cpu', arch='mae_vit_large_patch16'):
         super().__init__()
-        self.model = prepare_model(chkpt_dir, arch)
+        self.model = prepare_model(chkpt_dir, arch, device)
         self.device = device
         self.model.to(self.device)
         self.tfms = transforms.Compose([
