@@ -19,6 +19,16 @@ from utils import build_reader
 from vcsl.metric import evaluate_micro, evaluate_macro, precision_recall
 import re
 
+mpaa_video_ext_set = {'wmv', 'flv', 'MPG', 'mpg', 'mov', 'VOB', 'avi', 'vob',
+                    'rmvb', 'mpeg', 'mp4'}
+mpaa_file_ext_set = mpaa_video_ext_set.union({'idx', 'out', 'txt', 'vog'})
+
+def filter_short_pred(pred_value: List[List], filter_thresh: float):
+    for time_info in pred_value:
+        if ((time_info[2] - time_info[0]) + (time_info[3] - time_info[1])) / 2.0 > filter_thresh:
+            return False
+    return True
+
 
 def match_pattern(string, pattern):
     if re.search(pattern, string) is None:
@@ -29,10 +39,10 @@ def match_pattern(string, pattern):
 
 def get_mpaa_video_file_path(pair_str, video_root='/home/zhangchen/zhangchen_workspace/dataset/frank/MPAA',
                              return_all_path=True):
-    file_ext_set = {'wmv', 'flv', 'out', 'MPG', 'vog', 'mpg', 'mov', 'VOB', 'avi', 'sh', 'txt', 'vob',
-                    'rmvb', 'mpeg', 'mp4'}
+    # file_ext_set = {'wmv', 'flv', 'out', 'MPG', 'vog', 'mpg', 'mov', 'VOB', 'avi', 'sh', 'txt', 'vob',
+    #                 'rmvb', 'mpeg', 'mp4'}
     split_plan_num = 0
-    for file_ext in file_ext_set:
+    for file_ext in mpaa_file_ext_set:
         if len(pair_str.split(f'.{file_ext}-')) == 2:
             query_id = pair_str.split(f'.{file_ext}-')[0] + f'.{file_ext}'
             ref_id = pair_str.split(f'.{file_ext}-')[1]
@@ -669,18 +679,20 @@ class MPAA(object):
         self.video_root = video_root
         self.master = os.path.join(self.video_root, 'master')
         self.all_root = os.path.join(self.video_root, 'all')
-        self.all_data_file_list = [os.path.join(self.master, video_file) for video_file in os.listdir(self.master)] \
-                                  + [os.path.join(self.all_root, video_file) for video_file in
-                                     os.listdir(self.all_root)]
+        self.all_data_file_list = [os.path.join(self.master, video_file) for video_file in os.listdir(self.master) \
+                                   if video_file.split('.')[-1] in mpaa_video_ext_set] \
+                                  + [os.path.join(self.all_root, video_file) for video_file in os.listdir(self.all_root) \
+                                     if video_file.split('.')[-1] in mpaa_video_ext_set]
         self.all_data_id_list = [path.split(os.path.sep)[-1] for path in self.all_data_file_list]
-        print('len of query_root = ', len(os.listdir(self.master)))
-        print('len of all_root = ', len(os.listdir(self.all_root)))
+        # print('len of query_root = ', len(os.listdir(self.master)))
+        # print('len of all_root = ', len(os.listdir(self.all_root)))
         print('len of all_data_file_list = ', len(self.all_data_file_list))
 
 
-
-        self.queries = [file for file in os.listdir(self.all_root) if not (file.endswith('txt') or file.endswith('idx') or file.endswith('sh') or file.endswith('out')) ]
-        self.database = [file for file in os.listdir(self.master) if not (file.endswith('txt') or file.endswith('idx') or file.endswith('sh') or file.endswith('out'))]
+        self.queries = [file for file in os.listdir(self.all_root) if file.split('.')[-1] in mpaa_video_ext_set]
+        self.database = [file for file in os.listdir(self.master) if file.split('.')[-1] in mpaa_video_ext_set]
+        print('len of dataset queries = ', len(self.queries))
+        print('len of dataset database = ', len(self.database))
 
         if hdf5_file is not None:
             feature_file = h5py.File(hdf5_file, "r")
@@ -934,14 +946,14 @@ class MUSCLE_VCD(object):
                 pos_num += 1
         return pos_num / neg_num
 
-    def evaluate(self, pred_file, metric='f1'):
+    def evaluate(self, pred_file, metric='f1', filter_thresh=0):
         if metric.lower() == 'f1':
-            self.evaluate_f1(pred_file)
+            return self.evaluate_f1(pred_file, filter_thresh=filter_thresh)
         elif metric.lower() == 'map':
             similarities = json.load(open(pred_file))
             self.evaluate_map(similarities)
 
-    def evaluate_f1(self, pred_file):
+    def evaluate_f1(self, pred_file, filter_thresh=0):
         self.clip_gt = json.load(open(os.path.join(self.st2, 'gt_json.json')))
 
         config = dict()
@@ -950,6 +962,15 @@ class MUSCLE_VCD(object):
         pred_dict = reader.read(pred_file)
         eval_list = []
         not_in_pred_key_num = 0
+
+        # filter short clips
+        for key, value in pred_dict.items():
+            new_time_info_list = []
+            for copy_time_info in value:
+                if ((copy_time_info[2] - copy_time_info[0]) + (copy_time_info[3] - copy_time_info[1])) / 2 > filter_thresh:
+                    new_time_info_list.append(copy_time_info)
+            pred_dict[key] = new_time_info_list
+
         for key in pred_dict.keys():
             if key not in pred_dict.keys():
                 not_in_pred_key_num += 1
@@ -981,7 +1002,20 @@ class MUSCLE_VCD(object):
         # Evaluated result on all video pairs including positive and negative copied pairs.
         # The segment-level precision/recall can also indicate video-level performance since
         # missing or false alarm lead to decrease on segment recall or precision.
-        r, p, frr, far = evaluate_micro(result_dict, self.get_p_n_ratio(self.clip_gt))  # todo
+        try:
+            r, p, frr, far = evaluate_micro(result_dict, self.get_p_n_ratio(self.clip_gt))  # todo
+        except Exception as e:
+            print('except in evaluate_micro.')
+            print(e)
+            return {'all':
+                {
+                    'precision': 0,
+                    'recall': 0,
+                    'f1': 0,
+                    'frr': 1,
+                    'far': 1
+                }
+            }
         print(f"Feature {feat} & VTA {vta}: ")
         print(f"Overall segment-level performance, "
               f"Recall: {r:.2%}, "
@@ -993,11 +1027,20 @@ class MUSCLE_VCD(object):
               f"FAR: {far:.2%}, "
               )
 
-        r, p, cnt = evaluate_macro(result_dict, meta_pairs)
+        r_macro, p_macro, cnt = evaluate_macro(result_dict, meta_pairs)
 
         print(f"query set cnt {cnt}, "
-              f"query macro-Recall: {r:.2%}, "
-              f"query macro-Precision: {p:.2%}, "
-              f"F1: {2 * r * p / (r + p):.2%}, "
+              f"query macro-Recall: {r_macro:.2%}, "
+              f"query macro-Precision: {p_macro:.2%}, "
+              f"F1: {2 * r_macro * p_macro / (r_macro + p_macro):.2%}, "
               )
-        # slowmotion mashup tvepisodecam dark tvclip kbps rotation different withsubs graphicoverlay segmentremoval blur Cropping Scaling_HalfRes MirroredHorizontally blackboxinsertion ModifyContrast digest MSUNoiseGenerator frameremoval rip echo findedges flip insertclip mosaic noise replicate rgb rotate scale transition gaussian overlay contrast ghosting lightnin
+        return {
+            'all':
+            {
+                'precision': p,
+                'recall': r,
+                'f1': 2 * r * p / (r + p),
+                'frr': frr,
+                'far': far
+            }
+        }
