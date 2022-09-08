@@ -24,6 +24,8 @@ import math
 from multiprocessing import Pool, set_start_method
 from typing import List, Tuple, Any, Union
 from functools import partial
+
+from histogram_project import detect_by_histogram_project
 from .yolov5 import attempt_load, letterbox, non_max_suppression, scale_coords
 
 from tslearn.metrics import dtw_path_from_metric
@@ -566,6 +568,10 @@ def tn(sims: np.ndarray,
     list of temporal aligned copied segments, [query_min, ref_min, query_max, ref_max] for each segment
 
     """
+    #min_length=60
+    #min_sim = 0.1
+    #min_sim = 0.08:0.24:0.04
+    #tn_top_k=10
     infringe_box_list = []
     path = 0
     node_pair2id = {}
@@ -681,6 +687,47 @@ def tn(sims: np.ndarray,
             infringe_box_list.append([int(query_min), int(refer_min), int(query_max), int(refer_max)])
         path += 1
     return infringe_box_list
+
+
+def pm(sims: np.ndarray, angle_min=40, angle_max=50, interval=1, peak_rate_thresh=0.85, peak_width_thresh=8,
+       accumulate_rate_thresh=0.4, matrix_h_thresh=100, reduce_size=4):
+    return detect_by_histogram_project(sims,
+                                        angle_min=angle_min,
+                                        angle_max=angle_max,
+                                        interval=interval,
+                                        peak_rate_thresh=peak_rate_thresh,
+                                        peak_width_thresh=peak_width_thresh,
+                                        accumulate_rate_thresh=accumulate_rate_thresh,
+                                        matrix_h_thresh=matrix_h_thresh,
+                                        reduce_size=reduce_size
+    )
+
+def tn_pm(sims: np.ndarray,
+          tn_max_step: int = 10, tn_top_k: int = 5, max_path: int = 10,
+          min_sim: float = 0.2, min_length: int = 5, max_iou: float = 0.3,
+            angle_min=40, angle_max=50, interval=1, peak_rate_thresh=0.85, peak_width_thresh=8,
+            accumulate_rate_thresh=0.4, matrix_h_thresh=100, reduce_size=4
+                      ):
+    tn_res_list = tn(sims,
+                     tn_max_step=tn_max_step,
+                     tn_top_k=tn_top_k,
+                     max_path=max_path,
+                     min_sim=min_sim,
+                     min_length=min_length,
+                     max_iou=max_iou
+    )
+    pm_res_list = []
+    if len(tn_res_list) == 0:
+        pm_res_list = pm(sims,
+                         angle_min=angle_min,
+                         angle_max=angle_max,
+                         interval=interval,
+                         peak_rate_thresh=peak_rate_thresh,
+                         peak_width_thresh=peak_width_thresh,
+                         accumulate_rate_thresh=accumulate_rate_thresh,
+                         matrix_h_thresh=matrix_h_thresh,
+                         reduce_size=reduce_size)
+    return tn_res_list + pm_res_list
 
 
 def hv(sims: np.ndarray,
@@ -908,6 +955,86 @@ class TnVtaModel(BaseVtaModel):
         super(TnVtaModel, self).__init__(concurrency=concurrency, func_to_run=func)
 
 
+class PmVtaModel(BaseVtaModel):
+    """
+    Project similarity matrix
+    """
+    def __init__(self,
+                 concurrency=4,
+                 version="v1",
+                 angle_min=40, angle_max=50, interval=1,
+                 peak_rate_thresh=0.85, peak_width_thresh=8,
+                 accumulate_rate_thresh=0.4, matrix_h_thresh=100,
+                 reduce_size=4):
+        self.angle_min = angle_min
+        self.angle_max = angle_max
+        self.interval = interval
+
+        self.peak_rate_thresh = peak_rate_thresh
+        self.peak_width_thresh = peak_width_thresh
+
+        self.accumulate_rate_thresh = accumulate_rate_thresh
+        self.matrix_h_thresh = matrix_h_thresh
+        self.reduce_size = reduce_size
+
+        self.version = version
+        func = partial(pm,
+                       angle_min=self.angle_min,
+                       angle_max=self.angle_max,
+                       interval=self.interval,
+                       peak_rate_thresh=self.peak_rate_thresh,
+                       peak_width_thresh=self.peak_width_thresh,
+                       accumulate_rate_thresh=self.accumulate_rate_thresh,
+                       matrix_h_thresh=self.matrix_h_thresh,
+                       reduce_size=self.reduce_size
+                       )
+        super(PmVtaModel, self).__init__(concurrency=concurrency, func_to_run=func)
+
+class TnPmVtaModel(BaseVtaModel):
+    def __init__(self,
+                 concurrency=4,
+                 version="v1",
+                 tn_max_step=10, tn_top_k=5, max_path=10,
+                 min_sim=0.2, min_length=5, max_iou=0.3,
+                 angle_min=40,
+                 angle_max=50,
+                 interval=1,
+                 peak_rate_thresh=0.85,
+                 peak_width_thresh=8,
+                 accumulate_rate_thresh=0.4,
+                 matrix_h_thresh=100,
+                 reduce_size=4):
+        self.tn_max_step = tn_max_step
+        self.tn_top_k = tn_top_k
+        self.max_path = max_path
+
+        self.min_sim = min_sim
+        self.min_length = min_length
+        self.max_iou = max_iou
+
+        self.angle_min = angle_min
+        self.angle_max = angle_max
+        self.interval = interval
+
+        self.peak_rate_thresh = peak_rate_thresh
+        self.peak_width_thresh = peak_width_thresh
+
+        self.accumulate_rate_thresh = accumulate_rate_thresh
+        self.matrix_h_thresh = matrix_h_thresh
+        self.reduce_size = reduce_size
+
+        self.version = version
+
+        func = partial(tn_pm,
+                       tn_max_step=self.tn_max_step, tn_top_k=self.tn_top_k, max_path=self.max_path,
+                       min_sim=self.min_sim, min_length=self.min_length, max_iou=self.max_iou,
+                       angle_min=self.angle_min, angle_max=self.angle_max, interval=self.interval,
+                       peak_rate_thresh=self.peak_rate_thresh, peak_width_thresh=self.peak_width_thresh,
+                       accumulate_rate_thresh=self.accumulate_rate_thresh, matrix_h_thresh=self.matrix_h_thresh,
+                       reduce_size=self.reduce_size)
+        super(TnPmVtaModel, self).__init__(concurrency=concurrency, func_to_run=func)
+
+
 class HvVtaModel(BaseVtaModel):
     def __init__(self,
                  concurrency=4,
@@ -971,5 +1098,9 @@ def build_vta_model(method="DTW", concurrency=4, **config) -> BaseVtaModel:
         return HvVtaModel(concurrency=concurrency, version="v1", **config)
     elif method == "SPD":
         return SpdVtaModel(concurrency=concurrency, version="v1", **config)
+    elif method == "PM":
+        return PmVtaModel(concurrency=concurrency, version="v1", **config)
+    elif method =='TN+PM':
+        return TnPmVtaModel(concurrency=concurrency, version="v1", **config)
     else:
         raise ValueError(f"Unknown method {method}")

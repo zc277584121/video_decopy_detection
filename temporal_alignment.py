@@ -46,6 +46,15 @@ if __name__ == '__main__':
     parser.add_argument("--tn_top_K", type=int, default=5, help="top k nearest for TN")
     parser.add_argument("--tn_max_step", type=int, default=10, help="max step for TN")
 
+    parser.add_argument("--angle_min", type=int, default=40, help="start angle for PM")
+    parser.add_argument("--angle_max", type=int, default=50, help="end angle for PM")
+    parser.add_argument("--interval", type=int, default=1, help="angle interval for PM")
+    parser.add_argument("--peak_rate_thresh", type=float, default=0.85, help="peak rate thresh for PM")
+    parser.add_argument("--peak_width_thresh", type=float, default=8, help="peak width thresh for PM")
+    parser.add_argument("--accumulate_rate_thresh", type=float, default=0.4, help="accumulate rate thresh for PM")
+    parser.add_argument("--matrix_h_thresh", type=float, default=100, help="matrix height thresh for PM")
+    parser.add_argument("--reduce_size", type=int, default=4, help="reduce size for PM")
+
     parser.add_argument("--spd_model_path", type=str, help="SPD model path")
     parser.add_argument("--device", type=str, help="cpu or cuda:0 or others, only valid to SPD inference")
     parser.add_argument("--spd_conf_thres", type=float, default=0.5, help="bounding box conf filter for SPD inference")
@@ -121,7 +130,7 @@ if __name__ == '__main__':
             min_length=args.min_length,
             max_iou=args.max_iou
         )
-    elif args.alignment_method.startswith('TN'):
+    elif args.alignment_method == 'TN':
         model_config = dict(
             tn_max_step=args.tn_max_step, tn_top_k=args.tn_top_K, max_path=args.max_path,
             min_sim=args.min_sim, min_length=args.min_length, max_iou=args.max_iou
@@ -138,6 +147,27 @@ if __name__ == '__main__':
         model_config = dict(model_path=args.spd_model_path,
                             conf_thresh=args.spd_conf_thres,
                             device=args.device)
+    elif args.alignment_method == 'PM':
+        model_config = dict(angle_min=args.angle_min,
+                            angle_max=args.angle_max,
+                            peak_rate_thresh=args.peak_rate_thresh,
+                            peak_width_thresh=args.peak_width_thresh,
+                            accumulate_rate_thresh=args.accumulate_rate_thresh,
+                            matrix_h_thresh=args.matrix_h_thresh,
+                            reduce_size=args.reduce_size
+                            )
+    elif args.alignment_method == 'TN+PM':
+        model_config = dict(
+            tn_max_step=args.tn_max_step, tn_top_k=args.tn_top_K, max_path=args.max_path,
+            min_sim=args.min_sim, min_length=args.min_length, max_iou=args.max_iou,
+            angle_min=args.angle_min,
+            angle_max=args.angle_max,
+            peak_rate_thresh=args.peak_rate_thresh,
+            peak_width_thresh=args.peak_width_thresh,
+            accumulate_rate_thresh=args.accumulate_rate_thresh,
+            matrix_h_thresh=args.matrix_h_thresh,
+            reduce_size=args.reduce_size
+        )
     else:
         raise ValueError(f"Unknown VTA method: {args.alignment_method}")
 
@@ -152,11 +182,12 @@ if __name__ == '__main__':
     model = build_vta_model(method=args.alignment_method, concurrency=args.request_workers, **model_config)
 
     total_result = dict()
+    ii = 0
     for batch_data in islice(loader, 0, None):
-        logger.info("data cnt: {}, {}", len(batch_data), batch_data[0][0])
+        logger.info(f"{ii} / {len(loader)} data cnt: {len(batch_data)}, {batch_data[0][0]}")
         batch_result = model.forward_sim(batch_data)
         logger.info("result cnt: {}", len(batch_result))
-
+        ii += 1
         for pair_id, result in batch_result:
             total_result[pair_id] = result
 
