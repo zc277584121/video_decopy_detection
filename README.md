@@ -21,7 +21,7 @@ python calcu_similarity_matrix.py \
         --feature_path ./features/vcsl-dns_backbone-features.hdf5 \
         --similarity_type DnS \
         --dns_student_type attention \
-        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-qd_pair-dns_sim
+        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-qd_pair-dns_sim \
         --video_root /your_dataset_root/VCSL
 ```
 using pair_file, DnS similarity
@@ -32,7 +32,7 @@ python calcu_similarity_matrix.py \
         --similarity_type DnS \
         --pair_file ./vcsl_data/pair_file_val.csv \
         --dns_student_type attention \
-        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-val_pairs-dns_sim
+        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-val_pairs-dns_sim \
         --video_root /your_dataset_root/VCSL
 ```
 
@@ -42,7 +42,7 @@ python calcu_similarity_matrix.py \
         --dataset VCSL \
         --feature_path ./features/vcsl_feature.hdf5 \
         --similarity_type cos \
-        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-qd_pair-cos_sim
+        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-qd_pair-cos_sim \
         --video_root /your_dataset_root/VCSL
 ```
 using pair_file, cos similarity
@@ -52,7 +52,7 @@ python calcu_similarity_matrix.py \
         --feature_path ./features/vcsl_feature.hdf5 \
         --similarity_type cos \
         --pair_file ./vcsl_data/pair_file_val.csv \
-        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-val_pairs-cos_sim
+        --output_dir ./sim_matrix_npy/vcsl-dns_backbone-val_pairs-cos_sim \
         --video_root /your_dataset_root/VCSL
 ```
 
