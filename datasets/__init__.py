@@ -861,6 +861,8 @@ class MPAA(object):
         FP = 0
         FN = 0
         for pred_pair_str, pred_value in pred_dict.items():
+            if pred_pair_str not in filtered_gt_dict:
+                continue
             if pred_value is None or len(pred_value) == 0 \
                     or filter_short_pred(pred_value, filter_thresh=filter_thresh):
                 if len(filtered_gt_dict[pred_pair_str]) > 0:
