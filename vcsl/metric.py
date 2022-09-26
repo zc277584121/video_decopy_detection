@@ -179,6 +179,8 @@ def evaluate_macro(result_dict: Dict[str, Dict[str, Any]], video_set_dict: Dict[
         # print('video_id = ', video_id)
         precision_list = [result_dict[i]['precision'] for i in video_set_dict[video_id] if i in result_dict]
         recall_list = [result_dict[i]['recall'] for i in video_set_dict[video_id] if i in result_dict]
+        if len(recall_list) == 0 or len(precision_list) == 0:
+            continue
         r, p = sum(recall_list)/len(recall_list), sum(precision_list)/len(precision_list)
         macro_result = (r, p, )
         macro_result_list.append(macro_result)
@@ -223,5 +225,9 @@ def evaluate_micro(result_dict: Dict[str, Dict[str, Any]], ratio: float = 1) -> 
     # n = len(result_list) * 1 / (1 + ratio)
     # frr = FN / (FN + TP) = len(fr_list) / p
     # far = FP / (FP + TN) = len(fa_list) / n
-    frr, far = (1 + ratio) / ratio * len(fr_list) / len(result_list), (1 + ratio) * len(fa_list) / len(result_list)
+    if ratio is None:
+        frr = None
+        far = None
+    else:
+        frr, far = (1 + ratio) / ratio * len(fr_list) / len(result_list), (1 + ratio) * len(fa_list) / len(result_list)
     return r, p, frr, far

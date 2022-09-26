@@ -14,7 +14,8 @@ from model.students import FineGrainedStudent
 from utils import AsyncWriter, DataType
 from utils import data_utils
 from vcsl.datasets import PairDataset
-from vcsl.vta import VideoSimMapModel
+from vcsl.vta import VideoSimMapModel, sim_map_gpu
+import time
 
 random.seed(42)
 
@@ -94,6 +95,10 @@ def calcu_similarity_matrix(dataset, args):
                         elif args.similarity_type.lower() in ["cos", "chamfer"]:
                             _, _, batch_sim_matrix = sim_map_model.forward([(query_id, target_id, query_feature, targets_feature_batch)],
                                                                            normalize_input=args.with_l2_norm, similarity_type=args.similarity_type)[0] #batch size is 1 so use `[]`
+                            # _, _, batch_sim_matrix = sim_map_gpu(query_id, target_id, query_feature, targets_feature_batch,
+                            #             normalize_input=args.with_l2_norm,
+                            #             similarity_type=args.similarity_type,
+                            #             device='cuda:0')
                             batch_sim_matrix = torch.Tensor(batch_sim_matrix)
                         else:
                             raise 'args.similarity_type must be in ["dns", "cos", "chamfer"]'
@@ -102,6 +107,7 @@ def calcu_similarity_matrix(dataset, args):
                 sim_matrix = sim_matrix.cpu().numpy()
                 key = os.path.join(args.output_dir, f"{query_id}-{target_id}.npy")
                 writer_pool.consume((key, sim_matrix))
+                # np.save(key, sim_matrix)
         writer_pool.stop()
     else:  # pair
         pair_dataset = PairDataset(query_list=None,

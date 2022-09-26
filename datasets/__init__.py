@@ -485,6 +485,7 @@ class VCSL(object):
 
         # label_json_file = 'label_file_uuid_total.json'
         self.name = 'VCSL'
+        self.datafolder = datafolder
         self.annotation = {}
         self.split = split
         self.video_root = video_root
@@ -497,7 +498,9 @@ class VCSL(object):
         # data_list = df[['query_id', 'reference_id']].values.tolist()
         self.split_meta_file = os.path.join(datafolder, 'split_meta_pairs.json')
         self.anno_file = os.path.join(datafolder, 'label_file_uuid_total.json')
+        # self.anno_file = os.path.join(datafolder, 'gt_test_for_download_video.json')
         self.frames_all_file = os.path.join(datafolder, 'frames_all.csv')
+        self.video_categories_file = os.path.join(datafolder, 'video_categories.json')
         self.clip_gt = json.load(open(self.anno_file))
         if video_root is not None:
             self.all_data_file_list = [os.path.join(self.video_root, video_file) for video_file in
@@ -622,22 +625,63 @@ class VCSL(object):
         pred_dict = reader.read(pred_file)
         eval_list = []
         not_in_pred_key_num = 0
+        p_num = 0
+        n_num = 0
+        video_categories_dict = json.load(open(self.video_categories_file))
+        vid_2_category = dict()
+        for category, video_list in video_categories_dict.items():
+            for vid in video_list:
+                vid_2_category[vid] = category
+        not_same_category_num = 0
+        category_2_eval_list = defaultdict(list)
+        category_gt_dict = defaultdict(dict)
+        category_pred_dict = defaultdict(dict)
         for key in split_pairs:
             if key not in pred_dict.keys():
                 not_in_pred_key_num += 1
                 # print('not_in_pred_ key = ', key)
                 continue
-            if key in self.clip_gt:
-                eval_list += [{"name": key, "gt": self.clip_gt[key], "pred": pred_dict[key]}]
-            else:
-                eval_list += [{"name": key, "gt": [], "pred": pred_dict[key]}]
+            if (key in self.clip_gt and len(self.clip_gt[key]) != 0):
+                one_eval = [{"name": key, "gt": self.clip_gt[key], "pred": pred_dict[key]}]
+                eval_list += one_eval
+                p_num += 1
+                if vid_2_category[key.split('-')[0]] != vid_2_category[key.split('-')[1]]:
+                    not_same_category_num += 1
+                else:
+                    category = vid_2_category[key.split('-')[0]]
+                    category_2_eval_list[category] += one_eval
+                    category_gt_dict[category][key] = self.clip_gt[key]
+                    category_pred_dict[category][key] = pred_dict[key]
+            elif (key not in self.clip_gt) or (key in self.clip_gt and self.clip_gt[key] == []):
+                one_eval = [{"name": key, "gt": [], "pred": pred_dict[key]}]
+                eval_list += one_eval
+                n_num += 1
+                if vid_2_category[key.split('-')[0]] != vid_2_category[key.split('-')[1]]:
+                    not_same_category_num += 1
+                else:
+                    category = vid_2_category[key.split('-')[0]]
+                    category_2_eval_list[category] += one_eval
+                    category_gt_dict[category][key] = self.clip_gt[key]
+                    category_pred_dict[category][key] = pred_dict[key]
+
+        print('not_same_category_num = ', not_same_category_num)
         print(' not in pred key num = ', not_in_pred_key_num)
+        print(' p_num = ', p_num)
+        print(' n_num = ', n_num)
         print(f"finish loading files, start evaluation...")
 
         process_pool = Pool(4)
         result_list = process_pool.map(run_eval, eval_list)
         # print('result_list[0] =', result_list[0])
         result_dict = {i['name']: i for i in result_list}
+
+        # category_2_eval_dict = dict()
+
+        category_2_res_dict = dict()
+        for category, eval_list in category_2_eval_list.items():
+            category_2_res_dict[category] = process_pool.map(run_eval, eval_list)
+        for category, eval_dict in category_2_res_dict.items():
+            category_2_res_dict[category] = {i['name']: i for i in eval_dict}
 
         if self.split != 'all':
             meta_pairs = meta_pairs[self.split]
@@ -652,7 +696,11 @@ class VCSL(object):
         # Evaluated result on all video pairs including positive and negative copied pairs.
         # The segment-level precision/recall can also indicate video-level performance since
         # missing or false alarm lead to decrease on segment recall or precision.
-        r, p, frr, far = evaluate_micro(result_dict, 1)  # todo
+        for category, res_dict in category_2_res_dict.items():
+            r, p, _, _ = evaluate_micro(res_dict, None)
+            print(f'category: {category}: \n\t r={r:.2%} \t p = {p:.2%} \t f1 = {2 * r * p / (r + p):.2%}')
+
+        r, p, frr, far = evaluate_micro(result_dict, p_num / n_num)  # todo
         print(f"Feature {feat} & VTA {vta}: ")
         print(f"Overall segment-level performance, "
               f"Recall: {r:.2%}, "
@@ -671,6 +719,20 @@ class VCSL(object):
               f"query macro-Precision: {p:.2%}, "
               f"F1: {2 * r * p / (r + p):.2%}, "
               )
+        category_gt_folder = os.path.join(self.datafolder, 'category_gt')
+        category_pred_folder = os.path.join(self.datafolder, 'category_pred')
+        if not os.path.exists(category_gt_folder):
+            os.mkdir(category_gt_folder)
+        if not os.path.exists(category_pred_folder):
+            os.mkdir(category_pred_folder)
+        for category, gt_dict in category_gt_dict.items():
+            json_file = os.path.join(category_gt_folder, category.replace(' ', '_') + '.json')
+            with open(json_file, 'w') as f:
+                f.write(json.dumps(gt_dict, indent=4))
+        for category, pred_dict in category_pred_dict.items():
+            json_file = os.path.join(category_pred_folder, category.replace(' ', '_') + '.json')
+            with open(json_file, 'w') as f:
+                f.write(json.dumps(pred_dict, indent=4))
 
 
 class MPAA(object):
